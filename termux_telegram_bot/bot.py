@@ -3,6 +3,7 @@ import os
 import subprocess
 import uuid
 import json
+import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
@@ -303,8 +304,30 @@ async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_
 # --- Main Application Setup ---
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Logs errors."""
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
+    """Catat Error dan kirim pesan traceback ke pengguna."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+
+    # Mengambil traceback lengkap
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
+    tb_string = "".join(tb_list)
+
+    # Memformat pesan error
+    message = (
+        "Waduh, sepertinya ada error serius di belakang layar. 😥\n\n"
+        "Tolong teruskan pesan ini kepada developer agar bisa diperbaiki:\n\n"
+        "```\n"
+        f"Error: {context.error}\n\n"
+        f"Traceback:\n{tb_string[:3000]}"  # Batasi panjang agar tidak melebihi batas Telegram
+        "\n```"
+    )
+
+    # Kirim pesan ke pengguna
+    if isinstance(update, Update) and update.effective_chat:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            parse_mode='Markdown'
+        )
 
 def main() -> None:
     """Starts the bot."""
