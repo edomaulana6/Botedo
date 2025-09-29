@@ -75,3 +75,21 @@ Kalau semua langkah di atas udah beres, sekarang tinggal nyalain botnya!
     ```
 
 Selesai! Bot kamu sekarang udah online dan siap nerima perintah di Telegram. Kalau mau matiin botnya, tinggal tekan `Ctrl` + `C` di Termux. Selamat mencoba!
+
+---
+
+## 💡 Tips Tambahan: Kalau Gagal Download 💡
+
+Terkadang, situs seperti TikTok atau YouTube mengubah cara kerja mereka, yang bisa membuat bot ini tiba-tiba gagal download dari link tertentu.
+
+Kalau itu terjadi, solusinya adalah memperbarui "mesin" download bot ini (`yt-dlp`) ke versi paling baru, langsung dari sumbernya.
+
+Caranya:
+1.  Matikan bot (tekan `Ctrl` + `C`).
+2.  Jalankan perintah di bawah ini di Termux:
+    ```bash
+    pip install --upgrade "https://github.com/yt-dlp/yt-dlp/archive/master.zip"
+    ```
+3.  Setelah selesai, nyalakan lagi botnya.
+
+Ini akan memastikan bot kamu selalu punya versi `yt-dlp` yang paling canggih.
