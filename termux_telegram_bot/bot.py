@@ -200,7 +200,7 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
             )
     except subprocess.TimeoutExpired:
         logger.error(f"YouTube search for '{query}' timed out.")
-        await status_msg.edit_text("Waduh, pencarian lebih dari 60 detik. Kayaknya ada masalah jaringan atau YouTube lagi lambat. Coba lagi nanti ya. ⌛")
+        await status_msg.edit_text("Waduh, terdeteksi proses pencarian macet lebih dari 60 detik, jadi aku hentikan paksa. ቆ\n\nIni biasanya karena masalah jaringan. Coba lagi nanti ya.")
     except subprocess.CalledProcessError as e:
         logger.error(f"yt-dlp search error for '{query}': {e.stderr}")
         await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{e.stderr[:200]}`", parse_mode='Markdown')
@@ -238,7 +238,7 @@ async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     except subprocess.TimeoutExpired:
         logger.error(f"Quick search for '{query}' timed out.")
-        await status_msg.edit_text("Waduh, pencarian lebih dari 60 detik. Kayaknya ada masalah jaringan atau YouTube lagi lambat. Coba lagi nanti ya. ⌛")
+        await status_msg.edit_text("Waduh, terdeteksi proses pencarian macet lebih dari 60 detik, jadi aku hentikan paksa. ቆ\n\nIni biasanya karena masalah jaringan. Coba lagi nanti ya.")
     except subprocess.CalledProcessError as e:
         logger.error(f"yt-dlp quick search error for '{query}': {e.stderr}")
         await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{e.stderr[:200]}`", parse_mode='Markdown')
