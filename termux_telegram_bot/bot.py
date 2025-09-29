@@ -69,13 +69,29 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
         await edit_message(text="Nih, filenya udah kekirim! ✅")
 
     except subprocess.CalledProcessError as e:
-        error_message = f"Waduh, gagal download nih. Kayaknya ada masalah sama link atau formatnya.\n\nError: {e.stderr[:150]}"
+        stderr_lower = e.stderr.lower()
         logger.error(f"yt-dlp error for {url}: {e.stderr}")
-        await edit_message(text=error_message)
+
+        if "unable to extract" in stderr_lower or "report this issue" in stderr_lower:
+            error_message = (
+                "Waduh, gagal download dari link itu. 😥\n\n"
+                "Ini biasanya karena website (seperti TikTok/Instagram) baru saja update, jadi botnya perlu penyesuaian.\n\n"
+                "**Solusi Cepat:**\n"
+                "1. Matikan bot ini dulu (tekan `Ctrl` + `C`).\n"
+                "2. Jalankan perintah ini di Termux:\n"
+                "`pip install --upgrade yt-dlp`\n"
+                "3. Nyalakan lagi botnya.\n\n"
+                "Kalau cara di atas gak berhasil, berarti link-nya mungkin emang gak didukung saat ini."
+            )
+            await edit_message(text=error_message, parse_mode='Markdown')
+        else:
+            error_message = f"Waduh, gagal download nih. Kayaknya ada masalah sama link atau formatnya.\n\n*Pesan Error:*\n`{e.stderr[:200]}`"
+            await edit_message(text=error_message, parse_mode='Markdown')
+
     except Exception as e:
-        error_message = f"Aduh, maaf, ada kesalahan teknis nih. Coba lagi nanti ya.\n\nError: {str(e)}"
+        error_message = f"Aduh, maaf, ada kesalahan teknis nih. Coba lagi nanti ya.\n\n*Info Error:*\n`{str(e)}`"
         logger.error(f"Error downloading {url}: {e}")
-        await edit_message(text=error_message)
+        await edit_message(text=error_message, parse_mode='Markdown')
     finally:
         try:
             for item in download_dir.iterdir(): item.unlink()
