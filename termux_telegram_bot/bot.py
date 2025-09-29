@@ -173,49 +173,57 @@ async def handle_url_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.message.reply_text("Link diterima! Mau dijadiin video atau audio nih?", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Searches YouTube using yt-dlp and shows top 5 results."""
+    """Searches YouTube using yt-dlp and streams results one by one."""
     query = update.message.text
     status_msg = await update.message.reply_text(f"Oke, aku cariin \"{html.escape(query)}\" di YouTube ya... 🔎")
 
     try:
         command = ['yt-dlp', f"ytsearch5:{query}", '--dump-json']
-        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=60)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
 
-        results = []
-        for line in process.stdout.strip().split('\n'):
-            results.append(json.loads(line))
+        found_results = False
+        for line in iter(process.stdout.readline, ''):
+            if not line:
+                break
 
-        # Filter results for videos shorter than 10 minutes (600 seconds)
-        short_videos = [r for r in results if r.get('duration', 0) < 600]
+            if not found_results:
+                await status_msg.delete()
+                found_results = True
 
-        if not short_videos:
-            await status_msg.edit_text("Yah, lagu yang kamu cari gak ketemu. Coba pake kata kunci lain. 😕")
+            video = json.loads(line)
+
+            if video.get('duration', 0) < 600:
+                duration = format_seconds(video.get('duration'))
+                caption = (f"<b>{html.escape(video.get('title', 'No Title'))}</b>\n\n"
+                           f"🕒 Durasi: {duration}\n"
+                           f"👤 Channel: {html.escape(video.get('channel', 'N/A'))}")
+                keyboard = [[
+                    InlineKeyboardButton("🎬 Video", callback_data=f"dl_video:{video.get('webpage_url')}"),
+                    InlineKeyboardButton("🎵 Audio", callback_data=f"dl_audio:{video.get('webpage_url')}")
+                ]]
+                await update.message.reply_photo(
+                    photo=video.get('thumbnail'), caption=caption,
+                    reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
+                )
+
+        process.wait()
+        if process.returncode != 0:
+            stderr = process.stderr.read()
+            logger.error(f"yt-dlp search error for '{query}': {stderr}")
+            await update.message.reply_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
             return
 
-        await status_msg.delete()
-        for video in short_videos:
-            duration = format_seconds(video.get('duration'))
-            caption = (f"<b>{html.escape(video.get('title', 'No Title'))}</b>\n\n"
-                       f"🕒 Durasi: {duration}\n"
-                       f"👤 Channel: {html.escape(video.get('channel', 'N/A'))}")
-            keyboard = [[
-                InlineKeyboardButton("🎬 Video", callback_data=f"dl_video:{video.get('webpage_url')}"),
-                InlineKeyboardButton("🎵 Audio", callback_data=f"dl_audio:{video.get('webpage_url')}")
-            ]]
-            await update.message.reply_photo(
-                photo=video.get('thumbnail'), caption=caption,
-                reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
-            )
-    except subprocess.TimeoutExpired:
-        logger.error(f"YouTube search for '{query}' timed out.")
-        await status_msg.edit_text("Waduh, terdeteksi proses pencarian macet lebih dari 60 detik, jadi aku hentikan paksa. ቆ\n\nIni biasanya karena masalah jaringan. Coba lagi nanti ya.")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"yt-dlp search error for '{query}': {e.stderr}")
-        await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{e.stderr[:200]}`", parse_mode='Markdown')
+        if not found_results:
+            await status_msg.edit_text("Yah, lagu yang kamu cari gak ketemu. Coba pake kata kunci lain. 😕")
+        else:
+            await update.message.reply_text("✅ Pencarian selesai!")
+
     except Exception as e:
-        logger.error(f"Error YouTube search with yt-dlp: {e}")
-        error_details = f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
-        await status_msg.edit_text(error_details, parse_mode='Markdown')
+        logger.error(f"Error in handle_youtube_search: {e}")
+        try:
+            await status_msg.edit_text(f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`", parse_mode='Markdown')
+        except:
+             await update.message.reply_text(f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`", parse_mode='Markdown')
 
 async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Finds top YouTube result using yt-dlp and downloads audio."""
