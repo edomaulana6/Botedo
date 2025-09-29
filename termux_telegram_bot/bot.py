@@ -171,7 +171,7 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
 
     try:
         command = ['yt-dlp', f"ytsearch5:{query}", '--dump-json']
-        process = subprocess.run(command, capture_output=True, text=True, check=True)
+        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=30)
 
         results = []
         for line in process.stdout.strip().split('\n'):
@@ -198,6 +198,12 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
                 photo=video.get('thumbnail'), caption=caption,
                 reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
             )
+    except subprocess.TimeoutExpired:
+        logger.error(f"YouTube search for '{query}' timed out.")
+        await status_msg.edit_text("Waduh, pencarian lebih dari 30 detik. Kayaknya ada masalah jaringan atau YouTube lagi lambat. Coba lagi nanti ya. ⌛")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"yt-dlp search error for '{query}': {e.stderr}")
+        await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{e.stderr[:200]}`", parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Error YouTube search with yt-dlp: {e}")
         error_details = f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
@@ -211,7 +217,7 @@ async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     try:
         command = ['yt-dlp', f"ytsearch1:{query}", '--dump-json']
-        process = subprocess.run(command, capture_output=True, text=True, check=True)
+        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=30)
 
         top_result = json.loads(process.stdout)
 
@@ -230,6 +236,12 @@ async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE
         download_status_msg = await update.message.reply_text("Siap-siap, aku unduh audionya...")
         await download_and_send(chat_id, top_result.get('webpage_url'), 'audio', context, status_message=download_status_msg)
 
+    except subprocess.TimeoutExpired:
+        logger.error(f"Quick search for '{query}' timed out.")
+        await status_msg.edit_text("Waduh, pencarian lebih dari 30 detik. Kayaknya ada masalah jaringan atau YouTube lagi lambat. Coba lagi nanti ya. ⌛")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"yt-dlp quick search error for '{query}': {e.stderr}")
+        await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{e.stderr[:200]}`", parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Error quick search with yt-dlp: {e}")
         error_details = f"Aduh, ada error pas lagi cari cepet. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
