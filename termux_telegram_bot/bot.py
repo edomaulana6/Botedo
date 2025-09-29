@@ -147,13 +147,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(text="Asik, mau cari gambar apa di Pinterest? Kasih tau kata kuncinya ya. 🖼️")
     elif data.startswith('dl_'):
         _, format_choice, url = data.split(':', 2)
-        # Edit the original message to show it's being processed and remove buttons
         await query.edit_message_reply_markup(reply_markup=None)
-
-        # Send a new message to act as the status indicator
         status_message = await query.message.reply_text(f"Oke, aku siapin unduhan {format_choice}-nya ya...")
-
-        # Pass the new status message to the download function
         await download_and_send(query.message.chat_id, url, format_choice, context, status_message=status_message)
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -218,7 +213,7 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
         if process.returncode != 0:
             stderr = process.stderr.read()
             logger.error(f"yt-dlp search error for '{query}': {stderr}")
-            await update.message.reply_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
+            await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
             return
 
         if not found_results:
@@ -354,7 +349,7 @@ def main() -> None:
     application.add_handler(CommandHandler("caricepat", caricepat))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    application.add_error_handler(error_handler)
+    application.add_handler(error_handler)
 
     logger.info("Bot mulai jalan...")
     application.run_polling()
