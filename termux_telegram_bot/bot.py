@@ -151,7 +151,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_reply_markup(reply_markup=None)
 
         # Send a new message to act as the status indicator
-        status_message = await query.message.reply_text(f"Oke, aku siapin unduhan {format_choice}-nya ya...", quote=True)
+        status_message = await query.message.reply_text(f"Oke, aku siapin unduhan {format_choice}-nya ya...")
 
         # Pass the new status message to the download function
         await download_and_send(query.message.chat_id, url, format_choice, context, status_message=status_message)
