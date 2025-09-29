@@ -2,11 +2,11 @@ import logging
 import os
 import subprocess
 import uuid
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-from youtubesearchpython import VideosSearch
 import html
 import requests
 import re
@@ -22,17 +22,17 @@ logger = logging.getLogger(__name__)
 
 # --- Helper Functions ---
 
-def parse_duration_to_seconds(duration_str: str) -> int:
-    """Safely parses a duration string into seconds."""
-    if not duration_str: return float('inf')
-    parts = duration_str.split(':')
-    seconds = 0
-    try:
-        if len(parts) == 3: seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        elif len(parts) == 2: seconds = int(parts[0]) * 60 + int(parts[1])
-        elif len(parts) == 1: seconds = int(parts[0])
-        return seconds
-    except (ValueError, IndexError): return float('inf')
+def format_seconds(seconds: int) -> str:
+    """Converts seconds to HH:MM:SS or MM:SS format."""
+    if seconds is None:
+        return "N/A"
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    if h > 0:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    else:
+        return f"{m:02d}:{s:02d}"
 
 # --- Core Logic ---
 
@@ -79,7 +79,7 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
                 "**Solusi Cepat:**\n"
                 "1. Matikan bot ini dulu (tekan `Ctrl` + `C`).\n"
                 "2. Jalankan perintah ini di Termux:\n"
-                "`pip install --upgrade yt-dlp`\n"
+                "`pip install --upgrade \"https://github.com/yt-dlp/yt-dlp/archive/master.zip\"`\n"
                 "3. Nyalakan lagi botnya.\n\n"
                 "Kalau cara di atas gak berhasil, berarti link-nya mungkin emang gak didukung saat ini."
             )
@@ -165,63 +165,75 @@ async def handle_url_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.message.reply_text("Link diterima! Mau dijadiin video atau audio nih?", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Searches YouTube and shows top 5 results."""
+    """Searches YouTube using yt-dlp and shows top 5 results."""
     query = update.message.text
     status_msg = await update.message.reply_text(f"Oke, aku cariin \"{html.escape(query)}\" di YouTube ya... 🔎")
 
     try:
-        videos_search = VideosSearch(query, limit=5)
-        results = [v for v in videos_search.result()['result'] if parse_duration_to_seconds(v.get('duration')) < 600]
+        command = ['yt-dlp', f"ytsearch5:{query}", '--dump-json']
+        process = subprocess.run(command, capture_output=True, text=True, check=True)
 
-        if not results:
+        results = []
+        for line in process.stdout.strip().split('\n'):
+            results.append(json.loads(line))
+
+        # Filter results for videos shorter than 10 minutes (600 seconds)
+        short_videos = [r for r in results if r.get('duration', 0) < 600]
+
+        if not short_videos:
             await status_msg.edit_text("Yah, lagu yang kamu cari gak ketemu. Coba pake kata kunci lain. 😕")
             return
 
         await status_msg.delete()
-        for video in results:
-            caption = (f"<b>{html.escape(video['title'])}</b>\n\n"
-                       f"🕒 Durasi: {video['duration']}\n"
-                       f"👤 Channel: {html.escape(video['channel']['name'])}")
+        for video in short_videos:
+            duration = format_seconds(video.get('duration'))
+            caption = (f"<b>{html.escape(video.get('title', 'No Title'))}</b>\n\n"
+                       f"🕒 Durasi: {duration}\n"
+                       f"👤 Channel: {html.escape(video.get('channel', 'N/A'))}")
             keyboard = [[
-                InlineKeyboardButton("🎬 Video", callback_data=f"dl_video:{video['link']}"),
-                InlineKeyboardButton("🎵 Audio", callback_data=f"dl_audio:{video['link']}")
+                InlineKeyboardButton("🎬 Video", callback_data=f"dl_video:{video.get('webpage_url')}"),
+                InlineKeyboardButton("🎵 Audio", callback_data=f"dl_audio:{video.get('webpage_url')}")
             ]]
             await update.message.reply_photo(
-                photo=video['thumbnails'][0]['url'], caption=caption,
+                photo=video.get('thumbnail'), caption=caption,
                 reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
             )
     except Exception as e:
-        logger.error(f"Error YouTube search: {e}")
-        await status_msg.edit_text("Waduh, ada error pas nyari di YouTube. Maaf ya. 😥")
+        logger.error(f"Error YouTube search with yt-dlp: {e}")
+        error_details = f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
+        await status_msg.edit_text(error_details, parse_mode='Markdown')
 
 async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Finds top YouTube result and downloads audio."""
+    """Finds top YouTube result using yt-dlp and downloads audio."""
     query = update.message.text
     chat_id = update.message.chat_id
     status_msg = await update.message.reply_text(f"Cari cepet buat \"{html.escape(query)}\"... 🚀")
 
     try:
-        videos_search = VideosSearch(query, limit=1)
-        results = videos_search.result()['result']
-        if not results:
+        command = ['yt-dlp', f"ytsearch1:{query}", '--dump-json']
+        process = subprocess.run(command, capture_output=True, text=True, check=True)
+
+        top_result = json.loads(process.stdout)
+
+        if not top_result:
             await status_msg.edit_text("Yah, gak ketemu lagunya. Coba judul lain. 😕")
             return
 
-        top_result = results[0]
         await status_msg.delete()
 
         await update.message.reply_photo(
-            photo=top_result['thumbnails'][0]['url'],
-            caption=f"Ketemu! Ini lagunya:\n<b>{html.escape(top_result['title'])}</b>",
+            photo=top_result.get('thumbnail'),
+            caption=f"Ketemu! Ini lagunya:\n<b>{html.escape(top_result.get('title', 'No Title'))}</b>",
             parse_mode='HTML'
         )
 
         download_status_msg = await update.message.reply_text("Siap-siap, aku unduh audionya...")
-        await download_and_send(chat_id, top_result['link'], 'audio', context, status_message=download_status_msg)
+        await download_and_send(chat_id, top_result.get('webpage_url'), 'audio', context, status_message=download_status_msg)
 
     except Exception as e:
-        logger.error(f"Error quick search: {e}")
-        await status_msg.edit_text("Aduh, ada error pas lagi cari cepet. Maaf ya. 😥")
+        logger.error(f"Error quick search with yt-dlp: {e}")
+        error_details = f"Aduh, ada error pas lagi cari cepet. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
+        await status_msg.edit_text(error_details, parse_mode='Markdown')
 
 async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Scrapes Pinterest for images and sends top 5."""
