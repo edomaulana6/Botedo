@@ -4,13 +4,12 @@ import subprocess
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from youtubesearchpython import VideosSearch
 import html
 import requests
 import re
-from telegram import InputMediaPhoto
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,293 +23,246 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions ---
 
 def parse_duration_to_seconds(duration_str: str) -> int:
-    """Safely parses a duration string (e.g., '1:23:45', '12:34', '56') into seconds."""
-    if not duration_str:
-        return float('inf')
+    """Safely parses a duration string into seconds."""
+    if not duration_str: return float('inf')
     parts = duration_str.split(':')
     seconds = 0
     try:
-        if len(parts) == 3:
-            seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        elif len(parts) == 2:
-            seconds = int(parts[0]) * 60 + int(parts[1])
-        elif len(parts) == 1:
-            seconds = int(parts[0])
+        if len(parts) == 3: seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        elif len(parts) == 2: seconds = int(parts[0]) * 60 + int(parts[1])
+        elif len(parts) == 1: seconds = int(parts[0])
         return seconds
-    except (ValueError, IndexError):
-        return float('inf')
+    except (ValueError, IndexError): return float('inf')
 
 # --- Core Logic ---
 
 async def download_and_send(chat_id: int, url: str, format_choice: str, context: ContextTypes.DEFAULT_TYPE, status_message=None):
-    """
-    Downloads a file from a URL using yt-dlp and sends it to the chat.
-    Edits a status message to show progress.
-    """
+    """Downloads a file and sends it, with conversational status updates."""
     edit_message = status_message.edit_text if status_message else context.bot.send_message
 
     try:
-        await edit_message(text=f"⏳ Mengunduh {format_choice}, harap tunggu...")
+        await edit_message(text=f"Oke, sabar ya... Lagi proses download {format_choice}-nya nih... ⏳")
 
         download_dir = Path(f"./downloads/{uuid.uuid4()}")
         download_dir.mkdir(parents=True, exist_ok=True)
 
         if format_choice == 'audio':
-            command = [
-                'yt-dlp', '-x', '--audio-format', 'mp3',
-                '-o', f'{download_dir}/%(title)s.%(ext)s',
-                '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url
-            ]
+            command = ['yt-dlp', '-x', '--audio-format', 'mp3', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
         else:
-            command = [
-                'yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                '-o', f'{download_dir}/%(title)s.%(ext)s', url
-            ]
+            command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '-o', f'{download_dir}/%(title)s.%(ext)s', url]
 
         process = subprocess.run(command, capture_output=True, text=True, check=True)
         logger.info(f"yt-dlp stdout: {process.stdout}")
 
         downloaded_files = list(download_dir.iterdir())
-        if not downloaded_files:
-            raise FileNotFoundError("File tidak ditemukan setelah proses unduhan.")
+        if not downloaded_files: raise FileNotFoundError("Duh, filenya gak ketemu setelah di-download.")
 
         file_path = downloaded_files[0]
 
-        await edit_message(text=f"📤 Mengirim {format_choice}...")
+        await edit_message(text=f"Sip, udah ke-download! Sekarang lagi ngirim filenya... 📤")
 
         if format_choice == 'audio':
             await context.bot.send_audio(chat_id=chat_id, audio=open(file_path, 'rb'), filename=file_path.name)
         else:
             await context.bot.send_video(chat_id=chat_id, video=open(file_path, 'rb'), filename=file_path.name)
 
-        await edit_message(text="✅ Berhasil dikirim!")
+        await edit_message(text="Nih, filenya udah kekirim! ✅")
 
     except subprocess.CalledProcessError as e:
-        error_message = f"❌ Gagal mengunduh file.\nError: {e.stderr[:200]}"
+        error_message = f"Waduh, gagal download nih. Kayaknya ada masalah sama link atau formatnya.\n\nError: {e.stderr[:150]}"
         logger.error(f"yt-dlp error for {url}: {e.stderr}")
         await edit_message(text=error_message)
-
     except Exception as e:
-        error_message = f"❌ Terjadi kesalahan.\nError: {str(e)}"
+        error_message = f"Aduh, maaf, ada kesalahan teknis nih. Coba lagi nanti ya.\n\nError: {str(e)}"
         logger.error(f"Error downloading {url}: {e}")
         await edit_message(text=error_message)
-
     finally:
         try:
-            for item in download_dir.iterdir():
-                item.unlink()
+            for item in download_dir.iterdir(): item.unlink()
             download_dir.rmdir()
         except Exception as e:
-            logger.error(f"Error cleaning up directory {download_dir}: {e}")
+            logger.error(f"Gagal hapus folder sementara {download_dir}: {e}")
 
 # --- Command Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Sends a message with a welcome text and a main menu keyboard."""
+    """Greets the user and shows the main menu."""
     keyboard = [
-        [InlineKeyboardButton("⬇️ Unduh dari URL", callback_data='menu_download_url')],
+        [InlineKeyboardButton("⬇️ Download dari Link", callback_data='menu_download_url')],
         [InlineKeyboardButton("🎵 Cari Lagu YouTube", callback_data='menu_search_youtube')],
         [InlineKeyboardButton("🖼️ Cari Foto Pinterest", callback_data='menu_search_pinterest')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 Halo! Saya adalah bot asisten Anda.\n\nPilih salah satu opsi di bawah ini untuk memulai:",
+        "👋 Halo! Aku bot serbaguna.\n\nMau aku bantu apa hari ini? Tinggal pencet tombol di bawah ya!",
         reply_markup=reply_markup
     )
 
 async def caricepat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Asks the user for a song title for a quick search."""
+    """Asks for a song title for quick search."""
     context.user_data['state'] = 'awaiting_quick_search'
-    await update.message.reply_text("🎵 Silakan kirimkan judul lagu untuk diunduh cepat (audio).")
+    await update.message.reply_text("Oke, mau cari lagu apa? Kirim judulnya aja, nanti aku langsung jadiin audio. 🎵")
 
 # --- Callback Query & Message Handlers ---
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Parses all CallbackQuery updates."""
+    """Handles all button presses."""
     query = update.callback_query
     await query.answer()
-
     data = query.data
 
-    if data.startswith('menu_'):
-        if data == 'menu_download_url':
-            context.user_data['state'] = 'awaiting_url'
-            await query.edit_message_text(text="▶️ Silakan kirimkan URL yang ingin Anda unduh.")
-        elif data == 'menu_search_youtube':
-            context.user_data['state'] = 'awaiting_youtube_search'
-            await query.edit_message_text(text="🎵 Silakan kirimkan judul lagu yang ingin Anda cari.")
-        elif data == 'menu_search_pinterest':
-            context.user_data['state'] = 'awaiting_pinterest_search'
-            await query.edit_message_text(text="🖼️ Silakan kirimkan kata kunci untuk mencari gambar.")
-
+    if data == 'menu_download_url':
+        context.user_data['state'] = 'awaiting_url'
+        await query.edit_message_text(text="Oke, sini kasih aku link-nya. Nanti aku download-in. ▶️")
+    elif data == 'menu_search_youtube':
+        context.user_data['state'] = 'awaiting_youtube_search'
+        await query.edit_message_text(text="Sip, mau cari lagu apa di YouTube? Ketik judulnya di sini. 🎵")
+    elif data == 'menu_search_pinterest':
+        context.user_data['state'] = 'awaiting_pinterest_search'
+        await query.edit_message_text(text="Asik, mau cari gambar apa di Pinterest? Kasih tau kata kuncinya ya. 🖼️")
     elif data.startswith('dl_'):
         _, format_choice, url = data.split(':', 2)
         await download_and_send(query.message.chat_id, url, format_choice, context, status_message=query.message)
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles text messages based on the bot's current state."""
+    """Handles text messages based on bot's state."""
     state = context.user_data.get('state')
-    if not state:
-        return
+    if not state: return
 
-    # Clear state after processing
-    context.user_data['state'] = None
-
-    if state == 'awaiting_url':
-        await handle_url_input(update, context)
-    elif state == 'awaiting_youtube_search':
-        await handle_youtube_search(update, context)
-    elif state == 'awaiting_quick_search':
-        await handle_quick_search(update, context)
-    elif state == 'awaiting_pinterest_search':
-        await handle_pinterest_search(update, context)
+    context.user_data['state'] = None # Reset state after processing
+    if state == 'awaiting_url': await handle_url_input(update, context)
+    elif state == 'awaiting_youtube_search': await handle_youtube_search(update, context)
+    elif state == 'awaiting_quick_search': await handle_quick_search(update, context)
+    elif state == 'awaiting_pinterest_search': await handle_pinterest_search(update, context)
 
 async def handle_url_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Processes a URL sent by the user and shows download options."""
+    """Asks for download format after receiving a URL."""
     url = update.message.text
     if not (url.startswith('http://') or url.startswith('https://')):
-        await update.message.reply_text("⚠️ URL tidak valid. Harap kirimkan URL yang benar.")
+        await update.message.reply_text("Hmm, link-nya kayaknya gak bener deh. Coba cek lagi ya. ⚠️")
         return
 
-    keyboard = [
-        [
-            InlineKeyboardButton("🎬 Video", callback_data=f'dl_video:{url}'),
-            InlineKeyboardButton("🎵 Audio", callback_data=f'dl_audio:{url}'),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Pilih format unduhan:", reply_markup=reply_markup)
+    keyboard = [[
+        InlineKeyboardButton("🎬 Video", callback_data=f'dl_video:{url}'),
+        InlineKeyboardButton("🎵 Audio", callback_data=f'dl_audio:{url}'),
+    ]]
+    await update.message.reply_text("Link diterima! Mau dijadiin video atau audio nih?", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Searches YouTube and displays the top 5 results."""
+    """Searches YouTube and shows top 5 results."""
     query = update.message.text
-    await update.message.reply_text(f"🔎 Mencari lagu: \"{html.escape(query)}\"...", parse_mode='HTML')
+    status_msg = await update.message.reply_text(f"Oke, aku cariin \"{html.escape(query)}\" di YouTube ya... 🔎")
 
     try:
         videos_search = VideosSearch(query, limit=5)
         results = [v for v in videos_search.result()['result'] if parse_duration_to_seconds(v.get('duration')) < 600]
 
         if not results:
-            await update.message.reply_text("😕 Maaf, tidak ada lagu yang cocok ditemukan dengan durasi di bawah 10 menit.")
+            await status_msg.edit_text("Yah, lagu yang kamu cari gak ketemu. Coba pake kata kunci lain. 😕")
             return
 
+        await status_msg.delete()
         for video in results:
-            caption = (
-                f"<b>{html.escape(video['title'])}</b>\n\n"
-                f"<b>Durasi:</b> {video['duration']}\n"
-                f"<b>Channel:</b> {html.escape(video['channel']['name'])}"
-            )
+            caption = (f"<b>{html.escape(video['title'])}</b>\n\n"
+                       f"🕒 Durasi: {video['duration']}\n"
+                       f"👤 Channel: {html.escape(video['channel']['name'])}")
             keyboard = [[
                 InlineKeyboardButton("🎬 Video", callback_data=f"dl_video:{video['link']}"),
                 InlineKeyboardButton("🎵 Audio", callback_data=f"dl_audio:{video['link']}")
             ]]
             await update.message.reply_photo(
-                photo=video['thumbnails'][0]['url'],
-                caption=caption,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='HTML'
+                photo=video['thumbnails'][0]['url'], caption=caption,
+                reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
             )
     except Exception as e:
-        logger.error(f"Error during YouTube search: {e}")
-        await update.message.reply_text("❌ Terjadi kesalahan saat melakukan pencarian YouTube.")
+        logger.error(f"Error YouTube search: {e}")
+        await status_msg.edit_text("Waduh, ada error pas nyari di YouTube. Maaf ya. 😥")
 
 async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Finds the top YouTube result and downloads it as audio."""
+    """Finds top YouTube result and downloads audio."""
     query = update.message.text
     chat_id = update.message.chat_id
-    status_message = await update.message.reply_text(f"🔎 Mencari lagu: \"{html.escape(query)}\"...", parse_mode='HTML')
+    status_msg = await update.message.reply_text(f"Cari cepet buat \"{html.escape(query)}\"... 🚀")
 
     try:
         videos_search = VideosSearch(query, limit=1)
         results = videos_search.result()['result']
-
         if not results:
-            await status_message.edit_text("😕 Maaf, tidak ada lagu yang cocok ditemukan.")
+            await status_msg.edit_text("Yah, gak ketemu lagunya. Coba judul lain. 😕")
             return
 
         top_result = results[0]
-        await status_message.delete() # Clean up "Searching..." message
+        await status_msg.delete()
 
         await update.message.reply_photo(
             photo=top_result['thumbnails'][0]['url'],
-            caption=f"✅ Lagu ditemukan: <b>{html.escape(top_result['title'])}</b>",
+            caption=f"Ketemu! Ini lagunya:\n<b>{html.escape(top_result['title'])}</b>",
             parse_mode='HTML'
         )
 
-        download_status_msg = await update.message.reply_text("🚀 Mempersiapkan unduhan...")
+        download_status_msg = await update.message.reply_text("Siap-siap, aku unduh audionya...")
         await download_and_send(chat_id, top_result['link'], 'audio', context, status_message=download_status_msg)
 
     except Exception as e:
-        logger.error(f"Error during quick search: {e}")
-        await status_message.edit_text("❌ Terjadi kesalahan saat melakukan pencarian.")
-
+        logger.error(f"Error quick search: {e}")
+        await status_msg.edit_text("Aduh, ada error pas lagi cari cepet. Maaf ya. 😥")
 
 async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Searches Pinterest for images by scraping and sends the top 5."""
+    """Scrapes Pinterest for images and sends top 5."""
     query = update.message.text
-    status_message = await update.message.reply_text(f"🖼️ Mencari gambar di Pinterest untuk: \"{html.escape(query)}\"...")
+    status_msg = await update.message.reply_text(f"Sip, aku cariin gambar \"{html.escape(query)}\" di Pinterest... 🎨")
 
     try:
         url = f"https://www.pinterest.com/search/pins/?q={requests.utils.quote(query)}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
         response = requests.get(url, headers=headers)
         response.raise_for_status()
 
-        # Regex to find high-quality image URLs in the HTML/JSON content
-        image_urls = re.findall(r'"url":"(https://i\.pinimg\.com/originals/[^"]+\.jpg)"', response.text)
+        image_urls = list(dict.fromkeys(re.findall(r'"url":"(https://i\.pinimg\.com/originals/[^"]+\.jpg)"', response.text)))
 
-        unique_urls = list(dict.fromkeys(image_urls)) # Remove duplicates while preserving order
-
-        if not unique_urls:
-            await status_message.edit_text("😕 Maaf, tidak ada gambar yang ditemukan untuk kata kunci tersebut.")
+        if not image_urls:
+            await status_msg.edit_text("Hmm, gambarnya gak ketemu. Coba kata kunci yang lain. 😕")
             return
 
-        await status_message.edit_text(f"✅ Ditemukan {len(unique_urls[:5])} gambar! Mengirim...")
-
-        media_group = [InputMediaPhoto(media=url) for url in unique_urls[:5]]
-
-        # Add a caption to the first image
-        media_group[0].caption = f"Berikut adalah hasil pencarian untuk: \"{html.escape(query)}\""
-
+        await status_msg.edit_text(f"Dapet {len(image_urls[:5])} gambar! Aku kirim ya...")
+        media_group = [InputMediaPhoto(media=url) for url in image_urls[:5]]
+        media_group[0].caption = f"Ini dia 5 gambar teratas buat \"{html.escape(query)}\""
         await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media_group)
-        await status_message.delete()
+        await status_msg.delete()
 
     except requests.RequestException as e:
-        logger.error(f"Error fetching Pinterest page: {e}")
-        await status_message.edit_text("❌ Gagal terhubung ke Pinterest. Silakan coba lagi nanti.")
+        logger.error(f"Error fetching Pinterest: {e}")
+        await status_msg.edit_text("Duh, gagal nyambung ke Pinterest nih. Coba lagi nanti, ya.")
     except Exception as e:
-        logger.error(f"Error during Pinterest search: {e}")
-        await status_message.edit_text("❌ Terjadi kesalahan saat mencari gambar di Pinterest.")
-
+        logger.error(f"Error Pinterest search: {e}")
+        await status_msg.edit_text("Waduh, ada error pas nyari gambar. Maaf ya. 😥")
 
 # --- Main Application Setup ---
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log Errors caused by Updates."""
+    """Logs errors."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 def main() -> None:
-    """Start the bot."""
+    """Starts the bot."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token or token == "YOUR_TOKEN_HERE":
-        logger.error("FATAL: TELEGRAM_BOT_TOKEN is not set or is still the default value.")
-        print("\n" + "="*50)
-        print("🛑 Error: Bot token tidak ditemukan atau belum diatur.")
-        print("Silakan edit file .env dan masukkan token bot Anda.")
-        print("="*50 + "\n")
+        logger.error("TOKEN BOT BELUM DISET!")
+        print("\n======================================================")
+        print("🛑 WADUH, TOKEN BOT KAMU BELUM DIMASUKIN! 🛑")
+        print("Buka file .env, terus ganti YOUR_TOKEN_HERE dengan token bot kamu.")
+        print("Bisa dapet token dari @BotFather di Telegram.")
+        print("======================================================\n")
         return
 
     application = Application.builder().token(token).build()
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("caricepat", caricepat))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     application.add_error_handler(error_handler)
 
-    logger.info("Bot is starting...")
+    logger.info("Bot mulai jalan...")
     application.run_polling()
 
 if __name__ == "__main__":
