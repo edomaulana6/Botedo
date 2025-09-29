@@ -85,7 +85,15 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
             )
             await edit_message(text=error_message, parse_mode='Markdown')
         else:
-            error_message = f"Waduh, gagal download nih. Kayaknya ada masalah sama link atau formatnya.\n\n*Pesan Error:*\n`{e.stderr[:200]}`"
+            error_message = (
+                "Waduh, link yang kamu kasih sepertinya tidak bisa di-download. 🙁\n\n"
+                "Ini bisa terjadi karena beberapa alasan:\n"
+                "• Link-nya salah ketik atau tidak lengkap.\n"
+                "• Video/kontennya bersifat pribadi (private).\n"
+                "• Kontennya dibatasi untuk negara tertentu.\n"
+                "• Situs web tersebut memang tidak didukung.\n\n"
+                f"*Detail Teknis:*\n`{e.stderr[:150]}`"
+            )
             await edit_message(text=error_message, parse_mode='Markdown')
 
     except Exception as e:
