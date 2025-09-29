@@ -146,7 +146,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_text(text="Asik, mau cari gambar apa di Pinterest? Kasih tau kata kuncinya ya. 🖼️")
     elif data.startswith('dl_'):
         _, format_choice, url = data.split(':', 2)
-        await download_and_send(query.message.chat_id, url, format_choice, context, status_message=query.message)
+        # Edit the original message to show it's being processed and remove buttons
+        await query.edit_message_reply_markup(reply_markup=None)
+
+        # Send a new message to act as the status indicator
+        status_message = await query.message.reply_text(f"Oke, aku siapin unduhan {format_choice}-nya ya...", quote=True)
+
+        # Pass the new status message to the download function
+        await download_and_send(query.message.chat_id, url, format_choice, context, status_message=status_message)
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles text messages based on bot's state."""
