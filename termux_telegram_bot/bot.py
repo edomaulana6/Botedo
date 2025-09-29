@@ -11,6 +11,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import html
 import requests
 import re
+import httpx
 
 # Load environment variables from .env file
 load_dotenv()
@@ -179,15 +180,17 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
     """Searches YouTube using yt-dlp and streams results one by one."""
     query = update.message.text
     status_msg = await update.message.reply_text(f"Oke, aku cariin \"{html.escape(query)}\" di YouTube ya... 🔎")
-
+    process = None
     try:
         command = ['yt-dlp', f"ytsearch5:{query}", '--dump-json']
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
 
         found_results = False
         for line in iter(process.stdout.readline, ''):
-            if not line:
+            if not line and process.poll() is not None:
                 break
+            if not line:
+                continue
 
             if not found_results:
                 await status_msg.delete()
@@ -209,11 +212,14 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
                     reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
                 )
 
-        process.wait()
+        process.wait(timeout=90)
         if process.returncode != 0:
             stderr = process.stderr.read()
             logger.error(f"yt-dlp search error for '{query}': {stderr}")
-            await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
+            if not found_results:
+                await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
+            else:
+                await update.message.reply_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
             return
 
         if not found_results:
@@ -221,6 +227,11 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             await update.message.reply_text("✅ Pencarian selesai!")
 
+    except subprocess.TimeoutExpired:
+        logger.error(f"YouTube search for '{query}' timed out.")
+        if process:
+            process.kill()
+        await status_msg.edit_text("Waduh, terdeteksi proses pencarian macet lebih dari 90 detik, jadi aku hentikan paksa. ቆ\n\nIni biasanya karena masalah jaringan. Coba lagi nanti ya.")
     except Exception as e:
         logger.error(f"Error in handle_youtube_search: {e}")
         try:
@@ -236,7 +247,7 @@ async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     try:
         command = ['yt-dlp', f"ytsearch1:{query}", '--dump-json']
-        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=60)
+        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=90)
 
         top_result = json.loads(process.stdout)
 
@@ -312,28 +323,34 @@ async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_
 # --- Main Application Setup ---
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Catat Error dan kirim pesan traceback ke pengguna."""
-    logger.error("Exception while handling an update:", exc_info=context.error)
+    """Catat Error dan kirim pesan yang lebih spesifik ke pengguna."""
+    error = context.error
+    logger.error("Exception while handling an update:", exc_info=error)
 
-    # Mengambil traceback lengkap
-    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
-    tb_string = "".join(tb_list)
+    error_message = "Waduh, sepertinya ada error serius di belakang layar. 😥"
 
-    # Memformat pesan error
-    message = (
-        "Waduh, sepertinya ada error serius di belakang layar. 😥\n\n"
-        "Tolong teruskan pesan ini kepada developer agar bisa diperbaiki:\n\n"
-        "```\n"
-        f"Error: {context.error}\n\n"
-        f"Traceback:\n{tb_string[:3000]}"  # Batasi panjang agar tidak melebihi batas Telegram
-        "\n```"
-    )
+    if isinstance(error, httpx.ReadTimeout):
+        error_message = "Koneksi ke server Telegram putus di tengah jalan. Coba lagi nanti, ini biasanya masalah sementara. 🔌"
+    elif isinstance(error, httpx.ConnectTimeout):
+        error_message = "Gagal terhubung ke server Telegram. Cek koneksi internet kamu, atau mungkin Telegram lagi ada gangguan. 🛰️"
+    else:
+        # Untuk error lainnya, kirim traceback
+        tb_list = traceback.format_exception(None, error, error.__traceback__)
+        tb_string = "".join(tb_list)
+        error_message = (
+            "Waduh, sepertinya ada error serius di belakang layar. 😥\n\n"
+            "Tolong teruskan pesan ini kepada developer agar bisa diperbaiki:\n\n"
+            "```\n"
+            f"Error: {error}\n\n"
+            f"Traceback:\n{tb_string[:3000]}"
+            "\n```"
+        )
 
     # Kirim pesan ke pengguna
     if isinstance(update, Update) and update.effective_chat:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=message,
+            text=error_message,
             parse_mode='Markdown'
         )
 
@@ -353,8 +370,8 @@ def main() -> None:
     application = (
         Application.builder()
         .token(token)
-        .connect_timeout(30)
-        .read_timeout(30)
+        .connect_timeout(60)
+        .read_timeout(60)
         .build()
     )
 
