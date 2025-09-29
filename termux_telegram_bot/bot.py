@@ -277,9 +277,22 @@ async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_
         response = requests.get(url, headers=headers)
         response.raise_for_status()
 
-        image_urls = list(dict.fromkeys(re.findall(r'"url":"(https://i\.pinimg\.com/originals/[^"]+\.jpg)"', response.text)))
+        # Coba cari gambar kualitas terbaik (originals) dulu
+        image_urls = re.findall(r'"url":"(https://i\.pinimg\.com/originals/[^"]+\.jpg)"', response.text)
 
+        # Jika tidak ketemu, coba cari kualitas 736x
         if not image_urls:
+            logger.info("Tidak ada gambar kualitas 'originals', mencoba '736x'.")
+            image_urls = re.findall(r'"url":"(https://i\.pinimg\.com/736x/[^"]+\.jpg)"', response.text)
+
+        # Jika masih tidak ketemu, coba kualitas 564x
+        if not image_urls:
+            logger.info("Tidak ada gambar kualitas '736x', mencoba '564x'.")
+            image_urls = re.findall(r'"url":"(https://i\.pinimg\.com/564x/[^"]+\.jpg)"', response.text)
+
+        unique_urls = list(dict.fromkeys(image_urls))
+
+        if not unique_urls:
             await status_msg.edit_text("Hmm, gambarnya gak ketemu. Coba kata kunci yang lain. 😕")
             return
 
