@@ -1,0 +1,5 @@
+python-telegram-bot
+yt-dlp
+youtube-search-python
+python-dotenv
+requests
