@@ -47,9 +47,9 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
         download_dir.mkdir(parents=True, exist_ok=True)
 
         if format_choice == 'audio':
-            command = ['yt-dlp', '-x', '--audio-format', 'mp3', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
+            command = ['yt-dlp', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
         else:
-            command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '-o', f'{download_dir}/%(title)s.%(ext)s', url]
+            command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', url]
 
         process = subprocess.run(command, capture_output=True, text=True, check=True)
         logger.info(f"yt-dlp stdout: {process.stdout}")

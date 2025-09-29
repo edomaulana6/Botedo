@@ -27,11 +27,12 @@ pkg update && pkg upgrade
 
 Bot ini butuh beberapa alat biar bisa jalan. Ketik perintah ini:
 ```bash
-pkg install python git ffmpeg
+pkg install python git ffmpeg aria2
 ```
 *   `python` itu buat ngejalanin botnya.
 *   `git` buat download file botnya.
 *   `ffmpeg` buat proses video dan audio.
+*   `aria2` buat mempercepat proses download.
 
 **Langkah 3: Download File Botnya**
 
