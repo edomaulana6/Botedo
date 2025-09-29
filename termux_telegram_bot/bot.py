@@ -7,6 +7,7 @@ import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputMediaPhoto
+from telegram.request import Request
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 import html
 import requests
@@ -341,7 +342,10 @@ def main() -> None:
         print("======================================================\n")
         return
 
-    application = Application.builder().token(token).build()
+    # Naikkan batas waktu koneksi untuk membuatnya lebih sabar
+    request = Request(connect_timeout=30.0, read_timeout=30.0)
+    application = Application.builder().token(token).request(request).build()
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("caricepat", caricepat))
     application.add_handler(CallbackQueryHandler(button_handler))
