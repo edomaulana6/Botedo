@@ -30,35 +30,36 @@ Bot ini butuh beberapa alat biar bisa jalan. Ketik perintah ini:
 pkg install python git ffmpeg
 ```
 *   `python` itu buat ngejalanin botnya.
-*   `git` buat download file botnya (jika diperlukan).
+*   `git` untuk mengunduh file bot dari repositori.
 *   `ffmpeg` penting untuk memproses video dan audio.
 
-**Langkah 3: Buat Folder untuk Bot**
+**Langkah 3: Unduh Bot dan Masuk ke Direktori**
 
-Biar rapi, kita buat folder khusus untuk bot.
-```bash
-mkdir termux_telegram_bot
-cd termux_telegram_bot
-```
-> Setelah ini, pastikan semua file bot (`bot.py`, `requirements.txt`, dll.) ada di dalam folder ini.
+1.  Unduh file bot menggunakan `git`. Ganti `<URL_REPOSITORY>` dengan URL yang benar.
+    ```bash
+    git clone <URL_REPOSITORY>
+    ```
+2.  Sekarang, masuk ke dalam folder utama bot. **Ini langkah penting!**
+    ```bash
+    cd termux_telegram_bot
+    ```
+> Semua perintah selanjutnya harus dijalankan dari dalam folder `termux_telegram_bot` ini.
 
-**Langkah 4: Install "Bumbu Dapur" buat Python**
+**Langkah 4: Install Dependensi Python**
 
-Bot ini butuh beberapa library Python. Buat file `requirements.txt` lalu install.
+Jalankan perintah ini untuk menginstal semua "bumbu dapur" yang dibutuhkan oleh bot.
 ```bash
 pip install -r requirements.txt
 ```
 
-**Langkah 5: Masukin Token Rahasia Bot Kamu**
+**Langkah 5: Masukkan Token Rahasia Bot Kamu**
 
-Setiap bot punya token rahasia. Biar botnya bisa nyala, kamu harus masukin tokenmu ke dalam file `.env`.
-
-1.  Buka file `.env` pakai editor `nano`.
+1.  Buka file `.env` menggunakan editor teks `nano`.
     ```bash
     nano .env
     ```
-2.  Di dalamnya, ganti tulisan `YOUR_TOKEN_HERE` dengan token bot kamu yang didapat dari [@BotFather](https://t.me/BotFather).
-3.  Simpan filenya dengan menekan `Ctrl` + `X`, lalu `Y`, lalu `Enter`.
+2.  Di dalamnya, Anda akan melihat baris `TELEGRAM_TOKEN="ISI_TOKEN_ANDA_DISINI"`. Ganti `ISI_TOKEN_ANDA_DISINI` dengan token bot Anda yang didapat dari [@BotFather](https://t.me/BotFather).
+3.  Simpan file dengan menekan `Ctrl` + `X`, lalu `Y`, lalu `Enter`.
 
 ---
 

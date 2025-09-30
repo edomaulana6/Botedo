@@ -5,10 +5,9 @@ import asyncio
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 from telegram.constants import ParseMode
-from duckduckgo_search import DDGS
 
 # --- Konfigurasi Awal ---
 logging.basicConfig(
@@ -18,7 +17,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-TOKEN = os.getenv('YOUR_TOKEN_HERE')
+TOKEN = os.getenv('TELEGRAM_TOKEN')
+
+from urllib.parse import quote_plus
 
 WELCOME_MESSAGE = """
 🤖 **Selamat Datang di Bot Serbaguna!** 🤖
@@ -28,11 +29,33 @@ Saya bisa membantu Anda melakukan banyak hal:
 📥 **/start** - Memulai bot.
 🎵 **/carilagu** `[judul]` - Mencari 5 lagu teratas di YouTube.
 ⚡ **/caricepat** `[judul]` - Langsung mengunduh audio dari hasil pertama.
-🖼️ **/cari_gambar** `[kata kunci]` - Mencari 5 gambar di web.
+🖼️ **/cari_gambar** `[kata kunci]` - Mendapatkan link hasil pencarian gambar.
 🔗 Kirim **link apa saja** untuk mengunduhnya sebagai video atau audio.
 """
 
 # --- Fungsi Handler Utama ---
+
+async def search_images_safe(update: Update, context: CallbackContext) -> None:
+    """Membuat link pencarian gambar DuckDuckGo yang aman."""
+    query = ' '.join(context.args)
+    if not query:
+        await update.message.reply_text("Contoh: `/cari_gambar kucing lucu`")
+        return
+
+    # URL-encode query untuk memastikan aman digunakan di dalam URL
+    encoded_query = quote_plus(query)
+    search_url = f"https://duckduckgo.com/?q={encoded_query}&t=h_&iax=images&ia=images"
+
+    keyboard = [[
+        InlineKeyboardButton("🖼️ Lihat Hasil Pencarian", url=search_url)
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        f"Klik tombol di bawah untuk melihat hasil pencarian gambar untuk *{query}*:",
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
+    )
 
 async def start(update: Update, context: CallbackContext) -> None:
     """Mengirim pesan selamat datang."""
@@ -109,27 +132,6 @@ async def search_youtube_quick(update: Update, context: CallbackContext) -> None
         logger.error(f"Error di search_youtube_quick: {e}")
         await message.edit_text("Gagal menemukan atau mengunduh lagu.")
 
-async def search_images(update: Update, context: CallbackContext) -> None:
-    """Mencari gambar menggunakan DuckDuckGo."""
-    query = ' '.join(context.args)
-    if not query:
-        await update.message.reply_text("Contoh: `/cari_gambar kucing lucu`")
-        return
-
-    message = await update.message.reply_text(f"🖼️ Mencari gambar *{query}*...", parse_mode=ParseMode.MARKDOWN)
-    try:
-        results = await asyncio.to_thread(DDGS().images, keywords=query, max_results=5)
-        if not results:
-            await message.edit_text("Maaf, tidak ada gambar yang ditemukan.")
-            return
-
-        media_group = [InputMediaPhoto(media=res['image']) for res in results]
-        await message.delete()
-        await update.message.reply_media_group(media=media_group)
-    except Exception as e:
-        logger.error(f"Error di search_images: {e}")
-        await message.edit_text("Maaf, terjadi kesalahan saat mencari gambar.")
-
 # --- Fungsi Helper & Callback ---
 
 async def button_callback(update: Update, context: CallbackContext) -> None:
@@ -151,28 +153,23 @@ async def download_and_send(chat_id, media_type, url, context, message_to_edit):
     download_dir.mkdir(exist_ok=True)
 
     try:
-        # Perintah dasar untuk mendapatkan nama file output
         base_command = ['yt-dlp', '--no-playlist', '--print', 'filename']
 
-        # --- KUNCI PERBAIKAN TIMEOUT AUDIO ---
         if media_type == 'audio':
-            # Langsung ambil format audio terbaik, tanpa konversi ulang. Sangat cepat.
             options = ['-f', 'bestaudio/best']
-        else: # media_type == 'video'
-            # Ambil format video MP4 terbaik
+        else:
             options = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4']
 
         output_template = str(download_dir / '%(title)s.%(ext)s')
         command = base_command + options + ['-o', output_template, url]
 
-        # Jalankan yt-dlp untuk mengunduh dan mendapatkan nama file
         process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300.0) # Timeout 5 menit
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300.0)
 
         if process.returncode != 0:
             raise Exception(stderr.decode())
 
-        filepath_str = stdout.decode().strip().split('\n')[-1] # Ambil baris terakhir jika ada output lain
+        filepath_str = stdout.decode().strip().split('\n')[-1]
         if not filepath_str:
             raise FileNotFoundError("yt-dlp tidak mengembalikan nama file.")
 
@@ -180,7 +177,6 @@ async def download_and_send(chat_id, media_type, url, context, message_to_edit):
         if not filepath.exists():
             raise FileNotFoundError(f"File yang diunduh tidak ditemukan di: {filepath}")
 
-        # Kirim file
         await message_to_edit.edit_text("✅ Download selesai! Mengirim file...")
 
         if media_type == 'audio':
@@ -188,12 +184,11 @@ async def download_and_send(chat_id, media_type, url, context, message_to_edit):
         else:
             await context.bot.send_video(chat_id=chat_id, video=filepath.open('rb'), write_timeout=60)
 
-        # Hapus file setelah dikirim
         filepath.unlink()
         await message_to_edit.delete()
 
     except asyncio.TimeoutError:
-        await message_to_edit.edit_text("Download terlalu lama dan dibatalkan. Coba lagi dengan koneksi yang lebih stabil.")
+        await message_to_edit.edit_text("Download terlalu lama dan dibatalkan.")
     except Exception as e:
         logger.error(f"Error di download_and_send: {e}")
         await message_to_edit.edit_text(f"Gagal mengunduh atau mengirim file.\nInfo: {e}")
@@ -217,16 +212,15 @@ def main() -> None:
 
     application = Application.builder().token(TOKEN).connect_timeout(60).read_timeout(60).build()
 
-    # Daftarkan semua handler
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("carilagu", search_youtube))
     application.add_handler(CommandHandler("caricepat", search_youtube_quick))
-    application.add_handler(CommandHandler("cari_gambar", search_images))
+    application.add_handler(CommandHandler("cari_gambar", search_images_safe))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_error_handler(error_handler)
 
-    logger.info("Bot mulai berjalan dengan unduhan audio yang dioptimalkan...")
+    logger.info("Bot mulai berjalan (versi stabil tanpa pencarian gambar)...")
     application.run_polling()
 
 if __name__ == '__main__':
