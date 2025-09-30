@@ -2,4 +2,3 @@ python-telegram-bot
 python-dotenv
 yt-dlp
 duckduckgo-search
-pysocks
