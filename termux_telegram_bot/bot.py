@@ -151,6 +151,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.edit_message_reply_markup(reply_markup=None)
         status_message = await query.message.reply_text(f"Oke, aku siapin unduhan {format_choice}-nya ya...")
         await download_and_send(query.message.chat_id, url, format_choice, context, status_message=status_message)
+    elif data.startswith("retry_search:"):
+        search_query = data.split(":", 1)[1]
+        await _perform_youtube_search(update, context, search_query, is_retry=True)
+    elif data.startswith("retry_quick_search:"):
+        search_query = data.split(":", 1)[1]
+        await _perform_quick_search(update, context, search_query, is_retry=True)
+    elif data == "cancel_search":
+        await query.edit_message_text("Oke, pencarian dibatalkan. ✅")
+
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles text messages based on bot's state."""
@@ -176,10 +185,16 @@ async def handle_url_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     ]]
     await update.message.reply_text("Link diterima! Mau dijadiin video atau audio nih?", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Searches YouTube using yt-dlp and streams results one by one."""
-    query = update.message.text
-    status_msg = await update.message.reply_text(f"Oke, aku cariin \"{html.escape(query)}\" di YouTube ya... 🔎")
+# --- YouTube Search Core Functions ---
+
+async def _perform_youtube_search(update, context, query, is_retry=False):
+    """Core logic for performing a standard YouTube search."""
+    if is_retry:
+        status_msg = await update.callback_query.message.edit_text(f"Oke, aku coba lagi cari \"{html.escape(query)}\" dengan waktu lebih lama... 🔎")
+    else:
+        status_msg = await update.message.reply_text(f"Oke, aku cariin \"{html.escape(query)}\" di YouTube ya... 🔎")
+
+    timeout = 180 if is_retry else 90
     process = None
     try:
         command = ['yt-dlp', f"ytsearch5:{query}", '--dump-json']
@@ -187,17 +202,14 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
 
         found_results = False
         for line in iter(process.stdout.readline, ''):
-            if not line and process.poll() is not None:
-                break
-            if not line:
-                continue
+            if not line and process.poll() is not None: break
+            if not line: continue
 
             if not found_results:
                 await status_msg.delete()
                 found_results = True
 
             video = json.loads(line)
-
             if video.get('duration', 0) < 600:
                 duration = format_seconds(video.get('duration'))
                 caption = (f"<b>{html.escape(video.get('title', 'No Title'))}</b>\n\n"
@@ -207,68 +219,93 @@ async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TY
                     InlineKeyboardButton("🎬 Video", callback_data=f"dl_video:{video.get('webpage_url')}"),
                     InlineKeyboardButton("🎵 Audio", callback_data=f"dl_audio:{video.get('webpage_url')}")
                 ]]
-                await update.message.reply_photo(
+                await update.effective_chat.send_photo(
                     photo=video.get('thumbnail'), caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML'
                 )
 
-        process.wait(timeout=90)
+        process.wait(timeout=timeout)
         if process.returncode != 0:
             stderr = process.stderr.read()
             logger.error(f"yt-dlp search error for '{query}': {stderr}")
             if not found_results:
                 await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
+                await update.effective_chat.send_message(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{stderr[:200]}`", parse_mode='Markdown')
             return
 
         if not found_results:
             await status_msg.edit_text("Yah, lagu yang kamu cari gak ketemu. Coba pake kata kunci lain. 😕")
         else:
-            await update.message.reply_text("✅ Pencarian selesai!")
+            await update.effective_chat.send_message("✅ Pencarian selesai!")
 
     except subprocess.TimeoutExpired:
         logger.error(f"YouTube search for '{query}' timed out.")
-        if process:
-            process.kill()
-        await status_msg.edit_text("Waduh, terdeteksi proses pencarian macet lebih dari 90 detik, jadi aku hentikan paksa. ቆ\n\nIni biasanya karena masalah jaringan. Coba lagi nanti ya.")
+        if process: process.kill()
+
+        if is_retry:
+            await status_msg.edit_text("Waduh, udah ditunggu 3 menit tetep macet. Maaf, pencarian gagal. 😥")
+        else:
+            keyboard = [[
+                InlineKeyboardButton("✅ Ya, tunggu lagi", callback_data=f"retry_search:{query}"),
+                InlineKeyboardButton("❌ Tidak, batalkan", callback_data="cancel_search")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await status_msg.edit_text(
+                "Waduh, pencarian ini macet lebih dari 90 detik. Kayaknya jaringan lagi lambat. 🐌\n\nMau aku coba tunggu lebih lama lagi (3 menit)?",
+                reply_markup=reply_markup
+            )
     except Exception as e:
-        logger.error(f"Error in handle_youtube_search: {e}")
+        logger.error(f"Error in _perform_youtube_search: {e}")
+        error_details = f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
         try:
-            await status_msg.edit_text(f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`", parse_mode='Markdown')
+            await status_msg.edit_text(error_details, parse_mode='Markdown')
         except:
-             await update.message.reply_text(f"Waduh, ada error pas nyari di YouTube. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`", parse_mode='Markdown')
+             await update.effective_chat.send_message(error_details, parse_mode='Markdown')
 
-async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Finds top YouTube result using yt-dlp and downloads audio."""
-    query = update.message.text
-    chat_id = update.message.chat_id
-    status_msg = await update.message.reply_text(f"Cari cepet buat \"{html.escape(query)}\"... 🚀")
+async def _perform_quick_search(update, context, query, is_retry=False):
+    """Core logic for performing a quick YouTube search."""
+    chat_id = update.effective_chat.id
+    if is_retry:
+        status_msg = await update.callback_query.message.edit_text(f"Oke, aku coba lagi cari \"{html.escape(query)}\" dengan waktu lebih lama... 🚀")
+    else:
+        status_msg = await update.message.reply_text(f"Cari cepet buat \"{html.escape(query)}\"... 🚀")
 
+    timeout = 180 if is_retry else 90
     try:
         command = ['yt-dlp', f"ytsearch1:{query}", '--dump-json']
-        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=90)
+        process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=timeout)
 
         top_result = json.loads(process.stdout)
-
         if not top_result:
             await status_msg.edit_text("Yah, gak ketemu lagunya. Coba judul lain. 😕")
             return
 
         await status_msg.delete()
-
-        await update.message.reply_photo(
+        await context.bot.send_photo(
+            chat_id=chat_id,
             photo=top_result.get('thumbnail'),
             caption=f"Ketemu! Ini lagunya:\n<b>{html.escape(top_result.get('title', 'No Title'))}</b>",
             parse_mode='HTML'
         )
 
-        download_status_msg = await update.message.reply_text("Siap-siap, aku unduh audionya...")
+        download_status_msg = await context.bot.send_message(chat_id, "Siap-siap, aku unduh audionya...")
         await download_and_send(chat_id, top_result.get('webpage_url'), 'audio', context, status_message=download_status_msg)
 
     except subprocess.TimeoutExpired:
         logger.error(f"Quick search for '{query}' timed out.")
-        await status_msg.edit_text("Waduh, terdeteksi proses pencarian macet lebih dari 60 detik, jadi aku hentikan paksa. ቆ\n\nIni biasanya karena masalah jaringan. Coba lagi nanti ya.")
+        if is_retry:
+            await status_msg.edit_text("Waduh, udah ditunggu 3 menit tetep macet. Maaf, pencarian gagal. 😥")
+        else:
+            keyboard = [[
+                InlineKeyboardButton("✅ Ya, tunggu lagi", callback_data=f"retry_quick_search:{query}"),
+                InlineKeyboardButton("❌ Tidak, batalkan", callback_data="cancel_search")
+            ]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await status_msg.edit_text(
+                "Waduh, pencarian ini macet lebih dari 90 detik. Kayaknya jaringan lagi lambat. 🐌\n\nMau aku coba tunggu lebih lama lagi (3 menit)?",
+                reply_markup=reply_markup
+            )
     except subprocess.CalledProcessError as e:
         logger.error(f"yt-dlp quick search error for '{query}': {e.stderr}")
         await status_msg.edit_text(f"Waduh, ada error dari mesin pencari.\n\n*Detail:*\n`{e.stderr[:200]}`", parse_mode='Markdown')
@@ -276,6 +313,16 @@ async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Error quick search with yt-dlp: {e}")
         error_details = f"Aduh, ada error pas lagi cari cepet. Maaf ya. 😥\n\n*Pesan Error Detail:*\n`{str(e)}`"
         await status_msg.edit_text(error_details, parse_mode='Markdown')
+
+# --- Handlers that call the core functions ---
+
+async def handle_youtube_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _perform_youtube_search(update, context, update.message.text)
+
+async def handle_quick_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _perform_quick_search(update, context, update.message.text)
+
+# --- Pinterest Search ---
 
 async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Scrapes Pinterest for images and sends top 5."""
@@ -307,8 +354,8 @@ async def handle_pinterest_search(update: Update, context: ContextTypes.DEFAULT_
             await status_msg.edit_text("Hmm, gambarnya gak ketemu. Coba kata kunci yang lain. 😕")
             return
 
-        await status_msg.edit_text(f"Dapet {len(image_urls[:5])} gambar! Aku kirim ya...")
-        media_group = [InputMediaPhoto(media=url) for url in image_urls[:5]]
+        await status_msg.edit_text(f"Dapet {len(unique_urls[:5])} gambar! Aku kirim ya...")
+        media_group = [InputMediaPhoto(media=url) for url in unique_urls[:5]]
         media_group[0].caption = f"Ini dia 5 gambar teratas buat \"{html.escape(query)}\""
         await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media_group)
         await status_msg.delete()
