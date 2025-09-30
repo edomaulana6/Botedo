@@ -8,7 +8,7 @@ Halo! Ini adalah bot Telegram yang dibuat khusus untuk jalan di Termux. Bot ini 
 *   **Cari Lagu di YouTube**:
     *   **Pencarian Biasa**: Cari judul lagu, nanti bot kasih 5 hasil terbaik (yang durasinya pendek, cocok buat lagu). Lengkap dengan gambar thumbnail dan tombol buat milih video atau audio.
     *   **Cari Cepat**: Pakai perintah `/caricepat`, ketik judul lagu, dan bot bakal langsung kirim file audionya. Gak pake lama!
-*   **Cari Foto di Pinterest**: Mau cari gambar apa aja? Ketik kata kuncinya, nanti bot kirim 5 gambar paling top.
+*   **Cari Gambar di Web**: Pakai perintah `/cari_gambar`, kamu bisa cari gambar apa aja dari internet. (Tips: Tambahkan `site:pinterest.com` di akhir pencarianmu untuk hasil khusus dari Pinterest).
 
 ---
 
@@ -59,8 +59,52 @@ Setiap bot punya token rahasia. Biar botnya bisa nyala, kamu harus masukin token
     ```bash
     nano .env
     ```
-2.  Di dalemnya ada tulisan `YOUR_TOKEN_HERE`. Hapus tulisan itu dan ganti sama token bot kamu yang didapet dari [@BotFather](https://t.me/BotFather).
-3.  Kalau udah, simpen filenya. Caranya: Tekan `Ctrl` + `X`, terus tekan `Y`, terus `Enter`.
+2.  Di dalamnya, kamu akan melihat `YOUR_TOKEN_HERE="YOUR_TOKEN_HERE"`. Ganti tulisan `YOUR_TOKEN_HERE` di dalam tanda kutip dengan token bot kamu yang didapat dari [@BotFather](https://t.me/BotFather).
+3.  Simpan filenya dengan menekan `Ctrl` + `X`, lalu `Y`, lalu `Enter`.
+
+---
+
+## 💡 Mengatasi Masalah Koneksi (Penting!) 💡
+
+**Gejala:** Setelah menjalankan bot, bot tidak merespons atau langsung mati dengan pesan error seperti `Connection timed out`, `ConnectError`, atau `NetworkError`.
+
+**Penyebab:** Kemungkinan besar, penyedia layanan internet (ISP) kamu memblokir akses langsung ke server Telegram. Ini sering terjadi di beberapa negara atau jaringan.
+
+**Solusi:** Gunakan **Proxy**. Bot ini sudah dirancang untuk bisa berjalan lewat proxy dengan mudah.
+
+### Cara Mengatur Proxy:
+
+**1. Dapatkan Detail Proxy**
+
+Cara termudah adalah dengan mendapatkannya dari channel Telegram seperti [@ProxyMTProto](https://t.me/ProxyMTProto).
+   - Buka channel tersebut di aplikasi Telegram kamu.
+   - Cari pesan yang berisi proxy **SOCKS5**.
+   - Catat detailnya: **Server**, **Port**, **Username**, dan **Password**.
+
+**2. Masukkan Detail Proxy ke File `.env`**
+
+   - Buka kembali file `.env` dengan `nano .env`.
+   - Kamu akan melihat baris `PROXY_URL=""`.
+   - Isi baris tersebut dengan detail yang kamu dapatkan, dalam format berikut:
+     ```
+     PROXY_URL="socks5://<username>:<password>@<server>:<port>"
+     ```
+     **Contoh Nyata:**
+     Misal kamu dapat detail:
+     - Server: `proxy.mtproto.co`
+     - Port: `1984`
+     - Username: `user123`
+     - Password: `pass456`
+
+     Maka kamu harus mengisinya seperti ini:
+     ```
+     PROXY_URL="socks5://user123:pass456@proxy.mtproto.co:1984"
+     ```
+   - Simpan file (`Ctrl` + `X`, `Y`, `Enter`).
+
+**3. Jalankan Ulang Bot**
+
+Setelah proxy diatur, jalankan kembali bot (`./start.sh` atau `python bot.py`). Bot sekarang akan terhubung melalui proxy dan seharusnya bisa berjalan lancar!
 
 ---
 
