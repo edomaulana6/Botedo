@@ -66,15 +66,37 @@ Setiap bot punya token rahasia. Biar botnya bisa nyala, kamu harus masukin token
 
 ## 🚀 Cara Menjalankan Bot 🚀
 
-Kalau semua langkah di atas udah beres, sekarang tinggal nyalain botnya!
+Kalau semua langkah di atas udah beres, sekarang tinggal nyalain botnya! Ada dua cara:
 
-1.  Pastikan kamu ada di dalam folder botnya (`termux_telegram_bot`).
-2.  Jalanin perintah ini:
+### Cara 1: Dijalankan di Latar Belakang (Direkomendasikan)
+
+Ini cara terbaik biar bot tetap hidup meskipun aplikasi Termux kamu tertutup.
+
+1.  Pastikan kamu ada di dalam folder `termux_telegram_bot`.
+2.  Jalankan skrip `start.sh`:
+    ```bash
+    ./start.sh
+    ```
+    Bot akan mulai berjalan di latar belakang.
+
+**Untuk menghentikan bot:**
+Jalankan skrip `stop.sh`:
+```bash
+./stop.sh
+```
+
+### Cara 2: Dijalankan Langsung (Untuk Cek Error/Debugging)
+
+Cara ini cocok kalau kamu mau lihat log atau pesan error secara langsung di layar.
+
+1.  Pastikan kamu ada di dalam folder `termux_telegram_bot`.
+2.  Jalankan perintah ini:
     ```bash
     python bot.py
     ```
+Bot akan berjalan di sesi terminalmu. Untuk mematikannya, cukup tekan `Ctrl` + `C`.
 
-Selesai! Bot kamu sekarang udah online dan siap nerima perintah di Telegram. Kalau mau matiin botnya, tinggal tekan `Ctrl` + `C` di Termux. Selamat mencoba!
+Selamat mencoba!
 
 ---
 
