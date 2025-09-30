@@ -48,40 +48,32 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
         download_dir = Path(f"./downloads/{uuid.uuid4()}")
         download_dir.mkdir(parents=True, exist_ok=True)
 
-        output_template = download_dir / '%(title)s.%(ext)s'
-
         if format_choice == 'audio':
-            command = ['yt-dlp', '-f', 'bestaudio/best', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', str(output_template), '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
+            output_path = download_dir / 'audio.mp3'
+            command = ['yt-dlp', '-4', '-f', 'bestaudio/best', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', str(output_path), '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
         else:
-            command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4', '--external-downloader', 'aria2c', '-o', str(output_template), '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
+            output_template = download_dir / '%(title)s.%(ext)s'
+            command = ['yt-dlp', '-4', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4', '--external-downloader', 'aria2c', '-o', str(output_template), '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
 
         process = subprocess.run(command, capture_output=True, text=True, check=True)
         logger.info(f"yt-dlp stdout: {process.stdout}")
 
-        downloaded_files = list(download_dir.iterdir())
-        if not downloaded_files:
-            raise FileNotFoundError("Duh, filenya gak ketemu setelah di-download.")
-
         await edit_message(text=f"Sip, udah ke-download! Sekarang lagi ngirim filenya... 📤")
 
-        file_to_send = None
         if format_choice == 'audio':
-            # Cari file .mp3 secara spesifik
-            for f in downloaded_files:
-                if f.suffix.lower() == '.mp3':
-                    file_to_send = f
-                    break
-
-            if file_to_send:
-                await context.bot.send_audio(chat_id=chat_id, audio=open(file_to_send, 'rb'), filename=file_to_send.name)
+            audio_file = download_dir / 'audio.mp3'
+            if audio_file.exists():
+                await context.bot.send_audio(chat_id=chat_id, audio=open(audio_file, 'rb'))
             else:
-                # Jika tidak ada .mp3, berarti konversi gagal
-                logger.error("Konversi ke MP3 gagal, tidak ada file .mp3 yang ditemukan.")
+                logger.error("Konversi ke MP3 gagal, file audio.mp3 tidak ditemukan.")
                 await edit_message(text="Waduh, gagal mengubah file ke format MP3. 🙁\n\nIni biasanya terjadi kalau ada masalah dengan `ffmpeg`. Coba pastikan lagi `ffmpeg` sudah terpasang dengan benar di Termux (`pkg install ffmpeg`).")
-                return # Hentikan proses lebih lanjut
+                return
         else: # format_choice == 'video'
-            file_to_send = downloaded_files[0]
-            await context.bot.send_video(chat_id=chat_id, video=open(file_to_send, 'rb'), filename=file_to_send.name)
+            downloaded_files = list(download_dir.iterdir())
+            if not downloaded_files:
+                raise FileNotFoundError("Duh, filenya gak ketemu setelah di-download.")
+            video_file = downloaded_files[0]
+            await context.bot.send_video(chat_id=chat_id, video=open(video_file, 'rb'), filename=video_file.name)
 
         await edit_message(text="Nih, filenya udah kekirim! ✅")
 
@@ -140,9 +132,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 async def caricepat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Asks for a song title for quick search."""
-    context.user_data['state'] = 'awaiting_quick_search'
-    await update.message.reply_text("Oke, mau cari lagu apa? Kirim judulnya aja, nanti aku langsung jadiin audio. 🎵")
+    """
+    Handles the /caricepat command.
+    If args are provided, searches immediately. Otherwise, asks for input.
+    """
+    if context.args:
+        query = " ".join(context.args)
+        await _perform_quick_search(update, context, query)
+    else:
+        context.user_data['state'] = 'awaiting_quick_search'
+        await update.message.reply_text("Oke, mau cari lagu apa? Kirim judulnya aja, nanti aku langsung jadiin audio. 🎵")
 
 # --- Callback Query & Message Handlers ---
 
