@@ -48,25 +48,40 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
         download_dir = Path(f"./downloads/{uuid.uuid4()}")
         download_dir.mkdir(parents=True, exist_ok=True)
 
+        output_template = download_dir / '%(title)s.%(ext)s'
+
         if format_choice == 'audio':
-            command = ['yt-dlp', '-f', 'bestaudio', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
+            command = ['yt-dlp', '-f', 'bestaudio/best', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', str(output_template), '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
         else:
-            command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
+            command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4', '--external-downloader', 'aria2c', '-o', str(output_template), '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
 
         process = subprocess.run(command, capture_output=True, text=True, check=True)
         logger.info(f"yt-dlp stdout: {process.stdout}")
 
         downloaded_files = list(download_dir.iterdir())
-        if not downloaded_files: raise FileNotFoundError("Duh, filenya gak ketemu setelah di-download.")
-
-        file_path = downloaded_files[0]
+        if not downloaded_files:
+            raise FileNotFoundError("Duh, filenya gak ketemu setelah di-download.")
 
         await edit_message(text=f"Sip, udah ke-download! Sekarang lagi ngirim filenya... 📤")
 
+        file_to_send = None
         if format_choice == 'audio':
-            await context.bot.send_audio(chat_id=chat_id, audio=open(file_path, 'rb'), filename=file_path.name)
-        else:
-            await context.bot.send_video(chat_id=chat_id, video=open(file_path, 'rb'), filename=file_path.name)
+            # Cari file .mp3 secara spesifik
+            for f in downloaded_files:
+                if f.suffix.lower() == '.mp3':
+                    file_to_send = f
+                    break
+
+            if file_to_send:
+                await context.bot.send_audio(chat_id=chat_id, audio=open(file_to_send, 'rb'), filename=file_to_send.name)
+            else:
+                # Jika tidak ada .mp3, berarti konversi gagal
+                logger.error("Konversi ke MP3 gagal, tidak ada file .mp3 yang ditemukan.")
+                await edit_message(text="Waduh, gagal mengubah file ke format MP3. 🙁\n\nIni biasanya terjadi kalau ada masalah dengan `ffmpeg`. Coba pastikan lagi `ffmpeg` sudah terpasang dengan benar di Termux (`pkg install ffmpeg`).")
+                return # Hentikan proses lebih lanjut
+        else: # format_choice == 'video'
+            file_to_send = downloaded_files[0]
+            await context.bot.send_video(chat_id=chat_id, video=open(file_to_send, 'rb'), filename=file_to_send.name)
 
         await edit_message(text="Nih, filenya udah kekirim! ✅")
 
