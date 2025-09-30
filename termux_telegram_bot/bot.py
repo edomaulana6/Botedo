@@ -197,7 +197,7 @@ async def _perform_youtube_search(update, context, query, is_retry=False):
     timeout = 180 if is_retry else 90
     process = None
     try:
-        command = ['yt-dlp', f"ytsearch5:{query}", '--dump-json']
+        command = ['yt-dlp', '--user-agent', 'Mozilla/5.0', f"ytsearch5:{query}", '--dump-json']
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
 
         found_results = False
@@ -273,7 +273,7 @@ async def _perform_quick_search(update, context, query, is_retry=False):
 
     timeout = 180 if is_retry else 90
     try:
-        command = ['yt-dlp', f"ytsearch1:{query}", '--dump-json']
+        command = ['yt-dlp', '--user-agent', 'Mozilla/5.0', f"ytsearch1:{query}", '--dump-json']
         process = subprocess.run(command, capture_output=True, text=True, check=True, timeout=timeout)
 
         top_result = json.loads(process.stdout)
