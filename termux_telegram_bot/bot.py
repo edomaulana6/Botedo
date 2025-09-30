@@ -49,7 +49,7 @@ async def download_and_send(chat_id: int, url: str, format_choice: str, context:
         download_dir.mkdir(parents=True, exist_ok=True)
 
         if format_choice == 'audio':
-            command = ['yt-dlp', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
+            command = ['yt-dlp', '-f', 'bestaudio', '-x', '--audio-format', 'mp3', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
         else:
             command = ['yt-dlp', '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4', '--external-downloader', 'aria2c', '-o', f'{download_dir}/%(title)s.%(ext)s', '--ffmpeg-location', '/data/data/com.termux/files/usr/bin/ffmpeg', url]
 
