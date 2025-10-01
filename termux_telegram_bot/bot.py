@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 from telegram.constants import ParseMode
-from duckduckgo_images_api import search as search_ddg
+from ddgs import DDGS
+import itertools
 
 # --- Konfigurasi Awal ---
 logging.basicConfig(
@@ -37,12 +38,19 @@ WAITING_FOR = 'waiting_for_input'
 
 # --- Fungsi Logika Inti ---
 
+def sync_image_search(query):
+    """Fungsi sinkron untuk menjalankan pencarian gambar."""
+    results = DDGS().images(query, max_results=10)
+    # Ambil 5 URL gambar pertama yang valid
+    image_urls = [r.get('image') for r in results if r.get('image')][:5]
+    return image_urls
+
 async def execute_search_images(query: str, update: Update, context: CallbackContext):
     """Fungsi logika untuk mencari dan mengirim gambar."""
     message = await update.message.reply_text(f"🖼️ Mencari gambar untuk *{query}*...", parse_mode=ParseMode.MARKDOWN)
     try:
-        search_results = search_ddg(query, max_results=5)
-        image_urls = [res['image'] for res in search_results]
+        # Jalankan fungsi sinkron di thread terpisah agar tidak memblokir
+        image_urls = await asyncio.to_thread(sync_image_search, query)
 
         if not image_urls:
             await message.edit_text("Maaf, tidak ada gambar yang ditemukan.")
