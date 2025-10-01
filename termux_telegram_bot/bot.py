@@ -5,9 +5,10 @@ import asyncio
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 from telegram.constants import ParseMode
+from duckduckgo_images_api import search as search_ddg
 
 # --- Konfigurasi Awal ---
 logging.basicConfig(
@@ -19,8 +20,6 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 
-from urllib.parse import quote_plus
-
 WELCOME_MESSAGE = """
 🤖 **Selamat Datang di Bot Serbaguna!** 🤖
 
@@ -29,55 +28,38 @@ Saya bisa membantu Anda melakukan banyak hal:
 📥 **/start** - Memulai bot.
 🎵 **/carilagu** `[judul]` - Mencari 5 lagu teratas di YouTube.
 ⚡ **/caricepat** `[judul]` - Langsung mengunduh audio dari hasil pertama.
-🖼️ **/cari_gambar** `[kata kunci]` - Mendapatkan link hasil pencarian gambar.
+🖼️ **/cari_gambar** `[kata kunci]` - Mencari 5 gambar teratas.
 🔗 Kirim **link apa saja** untuk mengunduhnya sebagai video atau audio.
 """
 
-# --- Fungsi Handler Utama ---
+# Kunci untuk menyimpan state dalam context.user_data
+WAITING_FOR = 'waiting_for_input'
 
-async def search_images_safe(update: Update, context: CallbackContext) -> None:
-    """Membuat link pencarian gambar DuckDuckGo yang aman."""
-    query = ' '.join(context.args)
-    if not query:
-        await update.message.reply_text("Contoh: `/cari_gambar kucing lucu`")
-        return
+# --- Fungsi Logika Inti ---
 
-    # URL-encode query untuk memastikan aman digunakan di dalam URL
-    encoded_query = quote_plus(query)
-    search_url = f"https://duckduckgo.com/?q={encoded_query}&t=h_&iax=images&ia=images"
+async def execute_search_images(query: str, update: Update, context: CallbackContext):
+    """Fungsi logika untuk mencari dan mengirim gambar."""
+    message = await update.message.reply_text(f"🖼️ Mencari gambar untuk *{query}*...", parse_mode=ParseMode.MARKDOWN)
+    try:
+        search_results = search_ddg(query, max_results=5)
+        image_urls = [res['image'] for res in search_results]
 
-    keyboard = [[
-        InlineKeyboardButton("🖼️ Lihat Hasil Pencarian", url=search_url)
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+        if not image_urls:
+            await message.edit_text("Maaf, tidak ada gambar yang ditemukan.")
+            return
 
-    await update.message.reply_text(
-        f"Klik tombol di bawah untuk melihat hasil pencarian gambar untuk *{query}*:",
-        reply_markup=reply_markup,
-        parse_mode=ParseMode.MARKDOWN
-    )
+        media_group = [InputMediaPhoto(media=url) for url in image_urls]
 
-async def start(update: Update, context: CallbackContext) -> None:
-    """Mengirim pesan selamat datang."""
-    await update.message.reply_text(WELCOME_MESSAGE, parse_mode=ParseMode.MARKDOWN)
+        await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media_group)
+        await message.delete()
 
-async def handle_url(update: Update, context: CallbackContext) -> None:
-    """Menangani URL yang dikirim pengguna."""
-    url = update.message.text
-    logger.info(f"Menerima URL: {url}")
-    keyboard = [[
-        InlineKeyboardButton("🎬 Video", callback_data=f"download|video|{url}"),
-        InlineKeyboardButton("🎵 Audio (Cepat)", callback_data=f"download|audio|{url}"),
-    ]]
-    await update.message.reply_text("Pilih format yang Anda inginkan:", reply_markup=InlineKeyboardMarkup(keyboard))
+    except Exception as e:
+        logger.error(f"Error di execute_search_images: {e}")
+        await message.edit_text("Maaf, terjadi kesalahan saat mencari gambar.")
 
-async def search_youtube(update: Update, context: CallbackContext) -> None:
-    """Mencari 5 video teratas di YouTube."""
-    query = ' '.join(context.args)
-    if not query:
-        await update.message.reply_text("Contoh: `/carilagu Tulus Monokrom`")
-        return
 
+async def execute_search_youtube(query: str, update: Update, context: CallbackContext):
+    """Fungsi logika untuk mencari 5 video YouTube teratas."""
     message = await update.message.reply_text(f"🔎 Mencari lagu *{query}*...", parse_mode=ParseMode.MARKDOWN)
     try:
         command = ['yt-dlp', '--dump-json', '--no-playlist', '--match-filter', 'duration < 600', f"ytsearch5:{query}"]
@@ -105,16 +87,12 @@ async def search_youtube(update: Update, context: CallbackContext) -> None:
             else:
                 await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
-        logger.error(f"Error di search_youtube: {e}")
+        logger.error(f"Error di execute_search_youtube: {e}")
         await message.edit_text("Maaf, terjadi kesalahan saat mencari.")
 
-async def search_youtube_quick(update: Update, context: CallbackContext) -> None:
-    """Mencari dan langsung mengunduh audio dari hasil pertama."""
-    query = ' '.join(context.args)
-    if not query:
-        await update.message.reply_text("Contoh: `/caricepat Tulus Monokrom`")
-        return
 
+async def execute_search_youtube_quick(query: str, update: Update, context: CallbackContext):
+    """Fungsi logika untuk mencari dan mengunduh audio dari hasil pertama."""
     message = await update.message.reply_text(f"⚡ Mencari & menyiapkan audio untuk *{query}*...", parse_mode=ParseMode.MARKDOWN)
     try:
         command = ['yt-dlp', '--dump-json', '--no-playlist', f"ytsearch1:{query}"]
@@ -129,10 +107,75 @@ async def search_youtube_quick(update: Update, context: CallbackContext) -> None
         await message.edit_text(f"✅ Ditemukan! Mengunduh *{result.get('title', 'Tanpa Judul')}*...", parse_mode=ParseMode.MARKDOWN)
         await download_and_send(update.message.chat_id, 'audio', url, context, message)
     except Exception as e:
-        logger.error(f"Error di search_youtube_quick: {e}")
+        logger.error(f"Error di execute_search_youtube_quick: {e}")
         await message.edit_text("Gagal menemukan atau mengunduh lagu.")
 
-# --- Fungsi Helper & Callback ---
+# --- Handler Perintah Interaktif ---
+
+async def search_images(update: Update, context: CallbackContext) -> None:
+    """Memulai pencarian gambar. Meminta input jika tidak ada query."""
+    if context.args:
+        query = ' '.join(context.args)
+        await execute_search_images(query, update, context)
+    else:
+        await update.message.reply_text("Mau cari gambar apa?")
+        context.user_data[WAITING_FOR] = 'cari_gambar'
+
+async def search_youtube(update: Update, context: CallbackContext) -> None:
+    """Memulai pencarian lagu. Meminta input jika tidak ada query."""
+    if context.args:
+        query = ' '.join(context.args)
+        await execute_search_youtube(query, update, context)
+    else:
+        await update.message.reply_text("Lagu apa yang ingin Anda cari?")
+        context.user_data[WAITING_FOR] = 'carilagu'
+
+async def search_youtube_quick(update: Update, context: CallbackContext) -> None:
+    """Memulai pencarian cepat. Meminta input jika tidak ada query."""
+    if context.args:
+        query = ' '.join(context.args)
+        await execute_search_youtube_quick(query, update, context)
+    else:
+        await update.message.reply_text("Lagu apa yang ingin Anda unduh cepat?")
+        context.user_data[WAITING_FOR] = 'caricepat'
+
+async def handle_response(update: Update, context: CallbackContext) -> None:
+    """Menangani input teks dari pengguna saat bot menunggu."""
+    if WAITING_FOR in context.user_data:
+        command = context.user_data.pop(WAITING_FOR)
+        query = update.message.text
+
+        if command == 'carilagu':
+            await execute_search_youtube(query, update, context)
+        elif command == 'caricepat':
+            await execute_search_youtube_quick(query, update, context)
+        elif command == 'cari_gambar':
+            await execute_search_images(query, update, context)
+    else:
+        # Jika tidak menunggu input spesifik, anggap sebagai URL
+        await handle_url(update, context)
+
+
+# --- Handler Umum & Helper ---
+
+async def start(update: Update, context: CallbackContext) -> None:
+    """Mengirim pesan selamat datang."""
+    await update.message.reply_text(WELCOME_MESSAGE, parse_mode=ParseMode.MARKDOWN)
+
+async def handle_url(update: Update, context: CallbackContext) -> None:
+    """Menangani URL yang dikirim pengguna."""
+    url = update.message.text
+    # Filter sederhana untuk memastikan itu terlihat seperti URL
+    if "http" not in url and "://" not in url:
+        await update.message.reply_text("Maaf, saya tidak mengerti. Jika Anda ingin mengunduh, kirimkan link. Jika ingin mencari sesuatu, gunakan perintah seperti `/carilagu`.")
+        return
+
+    logger.info(f"Menerima URL: {url}")
+    keyboard = [[
+        InlineKeyboardButton("🎬 Video", callback_data=f"download|video|{url}"),
+        InlineKeyboardButton("🎵 Audio (Cepat)", callback_data=f"download|audio|{url}"),
+    ]]
+    await update.message.reply_text("Pilih format yang Anda inginkan:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def button_callback(update: Update, context: CallbackContext) -> None:
     """Menangani klik tombol inline."""
@@ -146,6 +189,7 @@ async def button_callback(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         logger.error(f"Error di button_callback: {e}")
         await query.edit_message_text("Maaf, terjadi kesalahan tak terduga.")
+
 
 async def download_and_send(chat_id, media_type, url, context, message_to_edit):
     """Fungsi inti untuk mengunduh dan mengirim file (dengan optimasi audio)."""
@@ -212,15 +256,20 @@ def main() -> None:
 
     application = Application.builder().token(TOKEN).connect_timeout(60).read_timeout(60).build()
 
+    # Handler Perintah
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("carilagu", search_youtube))
     application.add_handler(CommandHandler("caricepat", search_youtube_quick))
-    application.add_handler(CommandHandler("cari_gambar", search_images_safe))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
+    application.add_handler(CommandHandler("cari_gambar", search_images))
+
+    # Handler untuk respons interaktif dan URL
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_response))
+
+    # Handler Lainnya
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_error_handler(error_handler)
 
-    logger.info("Bot mulai berjalan (versi stabil tanpa pencarian gambar)...")
+    logger.info("Bot mulai berjalan dengan fitur interaktif...")
     application.run_polling()
 
 if __name__ == '__main__':
