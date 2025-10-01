@@ -70,7 +70,8 @@ async def execute_search_youtube(query: str, update: Update, context: CallbackCo
     """Fungsi logika untuk mencari 5 video YouTube teratas."""
     message = await update.message.reply_text(f"🔎 Mencari lagu *{query}*...", parse_mode=ParseMode.MARKDOWN)
     try:
-        command = ['yt-dlp', '--dump-json', '--no-playlist', '--match-filter', 'duration < 600', f"ytsearch5:{query}"]
+        # Filter durasi dihapus karena bisa tidak stabil
+        command = ['yt-dlp', '--dump-json', '--no-playlist', f"ytsearch5:{query}"]
         process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
 
@@ -210,7 +211,8 @@ async def download_and_send(chat_id, media_type, url, context, message_to_edit):
         if media_type == 'audio':
             options = ['-f', 'bestaudio/best']
         else:
-            options = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--recode-video', 'mp4']
+            # Opsi yang lebih kuat untuk memilih video & audio terbaik dari sumber mana pun
+            options = ['-f', 'bv*+ba/b', '--recode-video', 'mp4']
 
         output_template = str(download_dir / '%(title)s.%(ext)s')
         command = base_command + options + ['-o', output_template, url]
