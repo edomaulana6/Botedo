@@ -29,6 +29,7 @@ Saya bisa membantu Anda melakukan banyak hal:
 🎵 **/carilagu** `[judul]` - Mencari 5 lagu teratas di YouTube.
 ⚡ **/caricepat** `[judul]` - Langsung mengunduh audio dari hasil pertama.
 🖼️ **/cari_gambar** `[kata kunci]` - Mencari 5 gambar teratas.
+📌 **/caripinterest** `[kata kunci]` - Mencari 5 gambar dari Pinterest.
 🔗 Kirim **link apa saja** untuk mengunduhnya sebagai video atau audio.
 """
 
@@ -139,6 +140,19 @@ async def search_youtube_quick(update: Update, context: CallbackContext) -> None
         await update.message.reply_text("Lagu apa yang ingin Anda unduh cepat?")
         context.user_data[WAITING_FOR] = 'caricepat'
 
+
+async def search_pinterest(update: Update, context: CallbackContext) -> None:
+    """Memulai pencarian gambar di Pinterest (alias untuk cari_gambar)."""
+    if context.args:
+        query = ' '.join(context.args)
+        # Menambahkan "pinterest" pada query untuk hasil yang lebih relevan
+        pinterest_query = f"{query} pinterest"
+        await execute_search_images(pinterest_query, update, context)
+    else:
+        await update.message.reply_text("Mau cari gambar apa di Pinterest?")
+        context.user_data[WAITING_FOR] = 'caripinterest'
+
+
 async def handle_response(update: Update, context: CallbackContext) -> None:
     """Menangani input teks dari pengguna saat bot menunggu."""
     if WAITING_FOR in context.user_data:
@@ -151,6 +165,9 @@ async def handle_response(update: Update, context: CallbackContext) -> None:
             await execute_search_youtube_quick(query, update, context)
         elif command == 'cari_gambar':
             await execute_search_images(query, update, context)
+        elif command == 'caripinterest':
+            pinterest_query = f"{query} pinterest"
+            await execute_search_images(pinterest_query, update, context)
     else:
         # Jika tidak menunggu input spesifik, anggap sebagai URL
         await handle_url(update, context)
@@ -261,6 +278,7 @@ def main() -> None:
     application.add_handler(CommandHandler("carilagu", search_youtube))
     application.add_handler(CommandHandler("caricepat", search_youtube_quick))
     application.add_handler(CommandHandler("cari_gambar", search_images))
+    application.add_handler(CommandHandler("caripinterest", search_pinterest))
 
     # Handler untuk respons interaktif dan URL
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_response))
