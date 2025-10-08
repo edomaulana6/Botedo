@@ -80,64 +80,50 @@ async def perform_search(message, query: str, context: CallbackContext):
 
 # Fungsi untuk unduh video
 async def unduh_video(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-    video_url = query.data.split('|')[1]
-    ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'noplaylist': True,
-    }
-    with YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(video_url, download=True)
-        filename = ydl.prepare_filename(info_dict)
-        await context.bot.send_video(
-            chat_id=query.message.chat_id,
-            video=open(filename, 'rb'),
-            caption=info_dict.get('title')
-        )
-
-# Fungsi untuk unduh audio
-async def unduh_audio(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-    video_url = query.data.split('|')[1]
-    ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'noplaylist': True,
-        'format': 'bestaudio/best',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
-    }
-    with YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(video_url, download=True)
-        filename = ydl.prepare_filename(info_dict)
-        filename = os.path.splitext(filename)[0] + '.mp3'
-        await context.bot.send_audio(
-            chat_id=query.message.chat_id,
-            audio=open(filename, 'rb'),
-            caption=info_dict.get('title')
-        )
+    if context.args:
+        video_url = context.args[0]
+        ydl_opts = {
+            'outtmpl': 'downloads/%(title)s.%(ext)s',
+            'noplaylist': True,
+        }
+        with YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(video_url, download=True)
+            filename = ydl.prepare_filename(info_dict)
+            await context.bot.send_video(
+                chat_id=update.message.chat_id,
+                video=open(filename, 'rb'),
+                caption=info_dict.get('title')
+            )
+    else:
+        await update.message.reply_text("Mohon masukkan URL video")
 
 # Fungsi untuk cari jadwal azan
 async def jadwal_azan(update: Update, context: CallbackContext):
-    daerah = update.message.text
-    api_url = f'https://api.example.com/jadwal-azan/{daerah}'
-    response = requests.get(api_url)
-    if response.status_code == 200:
-        jadwal = response.json()
-        await update.message.reply_text(f'Jadwal azan di {daerah}: {jadwal}')
+    if context.args:
+        daerah = context.args[0]
+        api_url = f'https://api.example.com/jadwal-azan/{daerah}'
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            jadwal = response.json()
+            await update.message.reply_text(f'Jadwal azan di {daerah}: {jadwal}')
+        else:
+            await update.message.reply_text('Gagal mencari jadwal azan!')
     else:
-        await update.message.reply_text('Gagal mencari jadwal azan!')
+        await update.message.reply_text("Mohon masukkan nama daerah")
 
 # Fungsi untuk cari foto di Pinterest
 async def cari_foto(update: Update, context: CallbackContext):
-    query = update.message.text
-    api_url = f'https://api.example.com/pinterest/{query}'
-    response = requests.get(api_url)
-    if response.status_code == 200:
-        foto = response.json()
-        await update.message.reply_text(f'Foto di Pinterest: {foto}')
+    if context.args:
+        query = context.args[0]
+        api_url = f'https://api.example.com/pinterest/{query}'
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            foto = response.json()
+            await update.message.reply_text(f'Foto di Pinterest: {foto}')
+        else:
+            await update.message.reply_text('Gagal mencari foto!')
     else:
-        await update.message.reply_text('Gagal mencari foto!')
+        await update.message.reply_text("Mohon masukkan kata kunci")
 
 # Fungsi untuk cari jadwal konser JKT48
 async def jadwal_konser(update: Update, context: CallbackContext):
@@ -161,14 +147,8 @@ async def jadwal_live_jkt48(update: Update, context: CallbackContext):
 
 def main():
     application = Application.builder().token(TOKEN).build()
-    search_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("cari_video", cari_video)],
-        states={GET_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_search_query)]},
-        fallbacks=[],
-    )
-    application.add_handler(search_conv_handler)
-    application.add_handler(CallbackQueryHandler(unduh_video, pattern='^unduh_video\\|'))
-    application.add_handler(CallbackQueryHandler(unduh_audio, pattern='^unduh_audio\\|'))
+    application.add_handler(CommandHandler('cari_video', cari_video))
+    application.add_handler(CommandHandler('unduh_video', unduh_video))
     application.add_handler(CommandHandler('jadwal_azan', jadwal_azan))
     application.add_handler(CommandHandler('cari_foto', cari_foto))
     application.add_handler(CommandHandler('jadwal_konser', jadwal_konser))
