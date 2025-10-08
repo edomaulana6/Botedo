@@ -149,15 +149,15 @@ async def jadwal_konser(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text('Gagal mencari jadwal konser!')
 
-# Fungsi untuk cari jadwal live streaming
-async def jadwal_live(update: Update, context: CallbackContext):
-    api_url = 'https://api.example.com/live'
+# Fungsi untuk cari jadwal live streaming JKT48
+async def jadwal_live_jkt48(update: Update, context: CallbackContext):
+    api_url = 'https://api.example.com/jkt48/live'
     response = requests.get(api_url)
     if response.status_code == 200:
         jadwal = response.json()
-        await update.message.reply_text(f'Jadwal live streaming: {jadwal}')
+        await update.message.reply_text(f'Jadwal live streaming JKT48: {jadwal}')
     else:
-        await update.message.reply_text('Gagal mencari jadwal live!')
+        await update.message.reply_text('Gagal mencari jadwal live streaming!')
 
 def main():
     application = Application.builder().token(TOKEN).build()
@@ -172,7 +172,7 @@ def main():
     application.add_handler(CommandHandler('jadwal_azan', jadwal_azan))
     application.add_handler(CommandHandler('cari_foto', cari_foto))
     application.add_handler(CommandHandler('jadwal_konser', jadwal_konser))
-    application.add_handler(CommandHandler('jadwal_live', jadwal_live))
+    application.add_handler(CommandHandler('jadwal_live_jkt48', jadwal_live_jkt48))
     application.run_polling()
 
 if __name__ == '__main__':
