@@ -28,6 +28,16 @@ logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 # States untuk ConversationHandlers
 GET_VIDEO_QUERY, GET_GAMBAR_QUERY, GET_AZAN_QUERY = range(3)
 
+def format_duration(seconds: int) -> str:
+    """Memformat durasi dari detik menjadi string HH:MM:SS."""
+    if not seconds:
+        return "N/A"
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
+
 # Fungsi bantuan dan selamat datang
 async def start(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -170,6 +180,11 @@ async def perform_search(message, query: str, context: CallbackContext):
                 title = entry.get('title', 'N/A')
                 video_url = entry.get('webpage_url', '')
                 thumbnail_url = entry.get('thumbnail')
+                duration_seconds = entry.get('duration')
+                duration_formatted = format_duration(duration_seconds)
+
+                caption = f"{title}\n\nDurasi: {duration_formatted}"
+
                 keyboard = [
                     [
                         InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
@@ -181,13 +196,13 @@ async def perform_search(message, query: str, context: CallbackContext):
                     await context.bot.send_photo(
                         chat_id=message.chat_id,
                         photo=thumbnail_url,
-                        caption=title,
+                        caption=caption,
                         reply_markup=reply_markup
                     )
                 else:
                     await context.bot.send_message(
                         chat_id=message.chat_id,
-                        text=title,
+                        text=caption,
                         reply_markup=reply_markup
                     )
         else:
