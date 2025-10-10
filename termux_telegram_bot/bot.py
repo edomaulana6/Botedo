@@ -20,6 +20,11 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+# Mengatur level log untuk library yang "berisik" agar tidak membanjiri log
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+
 # States untuk ConversationHandlers
 GET_VIDEO_QUERY, GET_GAMBAR_QUERY, GET_AZAN_QUERY = range(3)
 
