@@ -108,13 +108,17 @@ async def get_azan_query(update: Update, context: CallbackContext):
     await perform_azan_search(update.message, update.message.text)
     return ConversationHandler.END
 
+def get_azan_times_sync(city: str):
+    """Fungsi sinkron untuk mengambil data jadwal salat."""
+    url = f"http://api.aladhan.com/v1/timingsByCity?city={city}&country=Indonesia&method=20"
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.json()
+
 async def perform_azan_search(message, city: str):
     status_msg = await message.reply_text(f"🕌 Mencari jadwal salat untuk `{city}`...", parse_mode='Markdown')
-    url = f"http://api.aladhan.com/v1/timingsByCity?city={city}&country=Indonesia&method=20"
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = await asyncio.to_thread(get_azan_times_sync, city)
 
         if data['code'] == 200:
             timings = data['data']['timings']
@@ -143,56 +147,58 @@ async def perform_azan_search(message, city: str):
         logging.error(f"Error saat memproses jadwal azan: {e}")
         await status_msg.edit_text("Terjadi kesalahan saat memproses permintaan Anda.")
 
+def search_videos_sync(query: str):
+    """Fungsi sinkron untuk mencari video dengan yt-dlp."""
+    ydl_opts = {
+        'format': 'best',
+        'noplaylist': True,
+        'default_search': 'ytsearch5',
+        'quiet': True,
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(f"ytsearch5:{query}", download=False)
+
 async def perform_search(message, query: str, context: CallbackContext):
     status_msg = await message.reply_text(f"🔎 Mencari `{query}`...", parse_mode='Markdown')
     try:
-        ydl_opts = {
-            'format': 'best',
-            'noplaylist': True,
-            'default_search': 'ytsearch5',
-            'quiet': True,
-        }
-        with YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(f"ytsearch5:{query}", download=False)
-            await status_msg.delete()
-            if 'entries' in result and result['entries']:
-                await message.reply_text("Berikut adalah hasil pencarian teratas:")
-                for entry in result['entries']:
-                    title = entry.get('title', 'N/A')
-                    video_url = entry.get('webpage_url', '')
-                    thumbnail_url = entry.get('thumbnail')
-                    keyboard = [
-                        [
-                            InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
-                            InlineKeyboardButton("Unduh Audio", callback_data=f"unduh_audio|{video_url}"),
-                        ]
+        result = await asyncio.to_thread(search_videos_sync, query)
+        await status_msg.delete()
+
+        if 'entries' in result and result['entries']:
+            await message.reply_text("Berikut adalah hasil pencarian teratas:")
+            for entry in result['entries']:
+                title = entry.get('title', 'N/A')
+                video_url = entry.get('webpage_url', '')
+                thumbnail_url = entry.get('thumbnail')
+                keyboard = [
+                    [
+                        InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
+                        InlineKeyboardButton("Unduh Audio", callback_data=f"unduh_audio|{video_url}"),
                     ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    if thumbnail_url:
-                        await context.bot.send_photo(
-                            chat_id=message.chat_id,
-                            photo=thumbnail_url,
-                            caption=title,
-                            reply_markup=reply_markup
-                        )
-                    else:
-                        await context.bot.send_message(
-                            chat_id=message.chat_id,
-                            text=title,
-                            reply_markup=reply_markup
-                        )
-            else:
-                await message.reply_text('Tidak ada hasil yang ditemukan!')
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                if thumbnail_url:
+                    await context.bot.send_photo(
+                        chat_id=message.chat_id,
+                        photo=thumbnail_url,
+                        caption=title,
+                        reply_markup=reply_markup
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=message.chat_id,
+                        text=title,
+                        reply_markup=reply_markup
+                    )
+        else:
+            await message.reply_text('Tidak ada hasil yang ditemukan!')
     except Exception as e:
         logging.error(f"Error saat mencari: {e}")
         await status_msg.edit_text("Terjadi kesalahan saat melakukan pencarian.")
 
-# Fungsi untuk unduh video
-async def unduh_video(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-    video_url = query.data.split('|')[1]
-    logging.info(f"Mengunduh video dari {video_url}")
+
+def download_video_sync(video_url: str):
+    """Fungsi sinkron untuk mengunduh video."""
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'noplaylist': True,
@@ -200,18 +206,31 @@ async def unduh_video(update: Update, context: CallbackContext):
     with YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(video_url, download=True)
         filename = ydl.prepare_filename(info_dict)
-        await context.bot.send_video(
-            chat_id=query.message.chat_id,
-            video=open(filename, 'rb'),
-            caption=info_dict.get('title')
-        )
+        return filename, info_dict.get('title')
 
-# Fungsi untuk unduh audio
-async def unduh_audio(update: Update, context: CallbackContext):
+async def unduh_video(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     video_url = query.data.split('|')[1]
-    logging.info(f"Mengunduh audio dari {video_url}")
+
+    original_caption = query.message.caption
+    await query.edit_message_caption(caption=f"⏳ Mengunduh video...\n\n{original_caption}")
+
+    try:
+        filename, title = await asyncio.to_thread(download_video_sync, video_url)
+        await context.bot.send_video(
+            chat_id=query.message.chat_id,
+            video=open(filename, 'rb'),
+            caption=title
+        )
+        await query.delete_message()
+    except Exception as e:
+        logging.error(f"Error saat mengunduh video: {e}")
+        await query.edit_message_caption(caption=f"❌ Gagal mengunduh video.\n\n{original_caption}")
+
+
+def download_audio_sync(video_url: str):
+    """Fungsi sinkron untuk mengunduh audio."""
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'noplaylist': True,
@@ -222,11 +241,27 @@ async def unduh_audio(update: Update, context: CallbackContext):
         info_dict = ydl.extract_info(video_url, download=True)
         filename = ydl.prepare_filename(info_dict)
         filename = os.path.splitext(filename)[0] + '.mp3'
+        return filename, info_dict.get('title')
+
+async def unduh_audio(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+    video_url = query.data.split('|')[1]
+
+    original_caption = query.message.caption
+    await query.edit_message_caption(caption=f"⏳ Mengunduh audio...\n\n{original_caption}")
+
+    try:
+        filename, title = await asyncio.to_thread(download_audio_sync, video_url)
         await context.bot.send_audio(
             chat_id=query.message.chat_id,
             audio=open(filename, 'rb'),
-            caption=info_dict.get('title')
+            caption=title
         )
+        await query.delete_message()
+    except Exception as e:
+        logging.error(f"Error saat mengunduh audio: {e}")
+        await query.edit_message_caption(caption=f"❌ Gagal mengunduh audio.\n\n{original_caption}")
 
 def main():
     application = Application.builder().token(TOKEN).build()
