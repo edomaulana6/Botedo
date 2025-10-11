@@ -26,7 +26,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 
 # States untuk ConversationHandlers
-GET_VIDEO_QUERY, GET_GAMBAR_QUERY, GET_AZAN_QUERY = range(3)
+GET_UNDUH_QUERY, GET_FOTO_QUERY, GET_AZAN_QUERY = range(3)
 
 def format_duration(seconds: int) -> str:
     """Memformat durasi dari detik menjadi string HH:MM:SS."""
@@ -49,8 +49,8 @@ async def start(update: Update, context: CallbackContext):
 async def help_command(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "📚 *Daftar Perintah:*\n\n"
-        "/cari_video <judul> - Mencari 5 video YouTube teratas.\n"
-        "/cari_gambar <kata_kunci> - Mencari 5 gambar teratas dari DuckDuckGo.\n"
+        "/unduh <judul/URL> - Mengunduh video atau audio dari YouTube.\n"
+        "/cari_foto <kata_kunci> - Mencari 5 foto teratas dari DuckDuckGo.\n"
         "/jadwal_azan <daerah> - Menampilkan jadwal azan untuk daerah tertentu.\n"
         "/help - Menampilkan pesan bantuan ini.\n\n"
         "Fitur jadwal JKT48 untuk sementara dinonaktifkan karena tidak ada sumber data yang stabil.\n"
@@ -58,16 +58,16 @@ async def help_command(update: Update, context: CallbackContext):
         parse_mode='Markdown'
     )
 
-# --- Fungsi untuk Cari Video ---
-async def cari_video(update: Update, context: CallbackContext):
+# --- Fungsi untuk Unduh Video/Audio ---
+async def unduh(update: Update, context: CallbackContext):
     if context.args:
         query = " ".join(context.args)
         await perform_search(update.message, query, context)
         return ConversationHandler.END
-    await update.message.reply_text("Silakan masukkan judul video yang ingin Anda cari:")
+    await update.message.reply_text("Silakan masukkan judul atau URL YouTube yang ingin Anda unduh:")
     return GET_VIDEO_QUERY
 
-async def get_video_query(update: Update, context: CallbackContext):
+async def get_unduh_query(update: Update, context: CallbackContext):
     await perform_search(update.message, update.message.text, context)
     return ConversationHandler.END
 
@@ -76,7 +76,7 @@ def search_videos_sync(query: str):
     ydl_opts = {
         'format': 'best',
         'noplaylist': True,
-        'default_search': 'ytsearch5',
+        'default_search': 'ytsearch1',
         'quiet': True,
     }
     with YoutubeDL(ydl_opts) as ydl:
@@ -125,16 +125,16 @@ async def perform_search(message, query: str, context: CallbackContext):
         logging.error(f"Error saat mencari: {e}")
         await status_msg.edit_text("Terjadi kesalahan saat melakukan pencarian.")
 
-# --- Fungsi untuk Cari Gambar ---
-async def cari_gambar(update: Update, context: CallbackContext):
+# --- Fungsi untuk Cari Foto ---
+async def cari_foto(update: Update, context: CallbackContext):
     if context.args:
         query = " ".join(context.args)
         await perform_gambar_search(update.message, query, context)
         return ConversationHandler.END
-    await update.message.reply_text("Silakan masukkan kata kunci gambar yang ingin Anda cari:")
-    return GET_GAMBAR_QUERY
+    await update.message.reply_text("Silakan masukkan kata kunci foto yang ingin Anda cari:")
+    return GET_FOTO_QUERY
 
-async def get_gambar_query(update: Update, context: CallbackContext):
+async def get_foto_query(update: Update, context: CallbackContext):
     await perform_gambar_search(update.message, update.message.text, context)
     return ConversationHandler.END
 
@@ -281,14 +281,14 @@ def main():
 
     # Conversation handlers
     conv_handlers = {
-        "cari_video": ConversationHandler(
-            entry_points=[CommandHandler("cari_video", cari_video)],
-            states={GET_VIDEO_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_video_query)]},
+        "unduh": ConversationHandler(
+            entry_points=[CommandHandler("unduh", unduh)],
+            states={GET_UNDUH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_unduh_query)]},
             fallbacks=[CommandHandler("start", start)],
         ),
-        "cari_gambar": ConversationHandler(
-            entry_points=[CommandHandler("cari_gambar", cari_gambar)],
-            states={GET_GAMBAR_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gambar_query)]},
+        "cari_foto": ConversationHandler(
+            entry_points=[CommandHandler("cari_foto", cari_foto)],
+            states={GET_FOTO_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_foto_query)]},
             fallbacks=[CommandHandler("start", start)],
         ),
         "jadwal_azan": ConversationHandler(
