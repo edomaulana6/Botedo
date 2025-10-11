@@ -10,6 +10,6 @@ while true; do
     echo "[$(date)] 🚀 Memulai bot..."
     # Menjalankan bot dan mengarahkan semua output (stdout & stderr) ke bot.log
     python bot.py >> bot.log 2>&1
-    echo "[$(date)] ⚠️ Bot berhenti. Me-restart dalam 5 detik..."
-    sleep 5
+    echo "[$(date)] ⚠️ Bot berhenti. Me-restart dalam 15 detik..."
+    sleep 15
 done
