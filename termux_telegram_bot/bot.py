@@ -6,7 +6,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from yt_dlp import YoutubeDL
 import requests
 from dotenv import load_dotenv
-from duckduckgo_images_api import search as ddg_search
+from bing_image_downloader import downloader
+import shutil
+from pathlib import Path
 
 # Muat variabel dari file .env
 load_dotenv()
@@ -72,15 +74,22 @@ async def get_unduh_query(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 def search_videos_sync(query: str):
-    """Fungsi sinkron untuk mencari video dengan yt-dlp."""
+    """
+    Fungsi sinkron untuk memproses URL atau mencari video.
+    Jika query adalah URL, ia akan mengambil info.
+    Jika bukan, ia akan mencari satu video teratas di YouTube.
+    """
     ydl_opts = {
         'format': 'best',
         'noplaylist': True,
-        'default_search': 'ytsearch1',
         'quiet': True,
     }
+
+    # Tentukan apakah query adalah URL atau kata kunci pencarian
+    search_query = query if query.strip().startswith('http') else f"ytsearch1:{query}"
+
     with YoutubeDL(ydl_opts) as ydl:
-        return ydl.extract_info(f"ytsearch5:{query}", download=False)
+        return ydl.extract_info(search_query, download=False)
 
 async def perform_search(message, query: str, context: CallbackContext):
     status_msg = await message.reply_text(f"🔎 Mencari `{query}`...", parse_mode='Markdown')
@@ -138,25 +147,39 @@ async def get_foto_query(update: Update, context: CallbackContext):
     await perform_gambar_search(update.message, update.message.text, context)
     return ConversationHandler.END
 
-def search_images_sync(query: str):
-    """Fungsi sinkron untuk menjalankan pencarian gambar."""
-    results = ddg_search(query, max_results=5)
-    return [r['image'] for r in results]
+def search_images_sync(query: str, output_dir: Path) -> list[Path]:
+    """Fungsi sinkron untuk mengunduh gambar menggunakan bing-image-downloader."""
+    downloader.download(query, limit=5, output_dir=output_dir, adult_filter_off=True, force_replace=False, timeout=60, verbose=False)
+    # Dapatkan path dari semua file gambar yang diunduh
+    image_dir = output_dir / query
+    if not image_dir.exists():
+        return []
+    return list(image_dir.glob('*'))
 
 async def perform_gambar_search(message, query: str, context: CallbackContext):
-    status_msg = await message.reply_text(f"🖼️ Mencari gambar untuk `{query}`...", parse_mode='Markdown')
+    status_msg = await message.reply_text(f"🖼️ Mencari foto untuk `{query}`...", parse_mode='Markdown')
+
+    # Buat direktori unik untuk unduhan ini
+    output_dir = Path(f"downloads/images_{message.chat_id}_{message.message_id}")
+
     try:
-        image_urls = await asyncio.to_thread(search_images_sync, query)
+        # Menjalankan fungsi sinkron di thread terpisah
+        image_paths = await asyncio.to_thread(search_images_sync, query, output_dir)
         await status_msg.delete()
 
-        if image_urls:
-            media_group = [InputMediaPhoto(media=url) for url in image_urls]
+        if image_paths:
+            media_group = [InputMediaPhoto(media=p.open('rb')) for p in image_paths]
             await message.reply_media_group(media=media_group)
         else:
-            await message.reply_text('Tidak ada gambar yang ditemukan!')
+            await message.reply_text('Tidak ada foto yang ditemukan!')
+
     except Exception as e:
-        logging.error(f"Error saat mencari gambar: {e}")
-        await status_msg.edit_text("Terjadi kesalahan saat mencari gambar.")
+        logging.error(f"Error saat mencari foto: {e}")
+        await status_msg.edit_text("Terjadi kesalahan saat mencari foto.")
+    finally:
+        # Selalu pastikan untuk membersihkan direktori unduhan
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
 
 # --- Fungsi untuk Jadwal Azan ---
 async def jadwal_azan(update: Update, context: CallbackContext):
@@ -309,10 +332,10 @@ def main():
     # Atur perintah bot saat inisialisasi
     async def post_init(application: Application):
         commands = [
-            BotCommand("unduh", "Mengunduh video atau audio dari YouTube"),
-            BotCommand("cari_foto", "Mencari foto berdasarkan kata kunci"),
-            BotCommand("jadwal_azan", "Mendapatkan jadwal salat untuk sebuah kota"),
-            BotCommand("help", "Menampilkan pesan bantuan"),
+            BotCommand(command="unduh", description="Mengunduh video atau audio dari YouTube"),
+            BotCommand(command="cari_foto", description="Mencari foto berdasarkan kata kunci"),
+            BotCommand(command="jadwal_azan", description="Mendapatkan jadwal salat untuk sebuah kota"),
+            BotCommand(command="help", description="Menampilkan pesan bantuan"),
         ]
         await application.bot.set_my_commands(commands)
 

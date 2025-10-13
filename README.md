@@ -1,108 +1,105 @@
 # 🤖 Bot Telegram Serbaguna untuk Termux 🤖
 
-Halo! Ini adalah bot Telegram yang dibuat khusus untuk jalan di Termux. Bot ini bisa membantumu download macem-macem hal, mulai dari lagu sampai gambar.
+Halo! Ini adalah bot Telegram yang dibuat khusus untuk berjalan secara stabil di lingkungan Termux.
 
-## ✨ Fitur Keren Bot Ini ✨
+## ✨ Fitur Utama ✨
 
-*   **Unduh Apa Aja dari URL**: Tinggal kasih link (misalnya dari YouTube, Instagram, dll), nanti bot tanya mau dijadiin video atau audio.
-*   **Cari Lagu di YouTube**:
-    *   **Pencarian Biasa**: Cari judul lagu, nanti bot kasih 5 hasil terbaik. Lengkap dengan gambar thumbnail dan tombol buat milih video atau audio.
-    *   **Cari Cepat**: Pakai perintah `/caricepat`, ketik judul lagu, dan bot bakal langsung kirim file audionya.
-*   **Cari Gambar di Web**: Pakai perintah `/cari_gambar`, kamu bisa cari gambar apa aja dari internet.
+*   **/unduh <judul atau URL>**: Mengunduh video atau audio dari berbagai sumber (YouTube, TikTok, dll.). Cukup berikan judul untuk dicari atau URL langsung. Bot akan memberikan pilihan format.
+*   **/cari_foto <kata kunci>**: Mencari 5 gambar teratas berdasarkan kata kunci yang Anda berikan.
+*   **/jadwal_azan <nama kota>**: Menampilkan jadwal salat lengkap untuk kota di Indonesia.
+*   **/help**: Menampilkan daftar semua perintah yang tersedia.
 
 ---
 
-## 🛠️ Cara Pasang di Termux (Gampang Kok!) 🛠️
+## 🛠️ Cara Pemasangan di Termux 🛠️
 
-Ikuti langkah-langkah ini satu per satu ya.
+Ikuti langkah-langkah ini satu per satu.
 
-**Langkah 1: Siapin Termux kamu**
+**Langkah 1: Persiapan Termux**
 
-Buka Termux, terus ketik perintah ini buat update sistemnya.
+Buka Termux, lalu jalankan perintah ini untuk memastikan semuanya ter-update.
 ```bash
-pkg update && pkg upgrade
+pkg update && pkg upgrade -y
 ```
 
-**Langkah 2: Install Alat-alat yang Dibutuhin**
+**Langkah 2: Instal Alat yang Dibutuhkan**
 
-Bot ini butuh beberapa alat biar bisa jalan. Ketik perintah ini:
+Bot ini memerlukan beberapa program dasar agar bisa berjalan.
 ```bash
-pkg install python git ffmpeg
+pkg install python git ffmpeg -y
 ```
-*   `python` itu buat ngejalanin botnya.
-*   `git` untuk mengunduh file bot dari repositori.
-*   `ffmpeg` penting untuk memproses video dan audio.
+*   `python`: Untuk menjalankan kode bot.
+*   `git`: Untuk mengunduh file bot dari repositori.
+*   `ffmpeg`: Penting untuk memproses video dan audio.
 
-**Langkah 3: Unduh Bot dan Masuk ke Direktori**
+**Langkah 3: Unduh Kode Bot**
 
-1.  Unduh file bot menggunakan `git`. Ganti `<URL_REPOSITORY>` dengan URL yang benar.
+1.  Unduh (clone) file bot dari repositori ini. Ganti `<URL_REPOSITORY>` dengan URL yang benar.
     ```bash
     git clone <URL_REPOSITORY>
     ```
-2.  Sekarang, masuk ke dalam folder utama bot. **Ini langkah penting!**
+2.  Masuk ke dalam folder bot yang baru saja diunduh.
     ```bash
     cd termux_telegram_bot
     ```
-> Semua perintah selanjutnya harus dijalankan dari dalam folder `termux_telegram_bot` ini.
+> **Penting**: Semua perintah selanjutnya harus dijalankan dari dalam folder `termux_telegram_bot`.
 
-**Langkah 4: Install Dependensi Python**
+**Langkah 4: Instal Dependensi Python**
 
-Jalankan perintah ini untuk menginstal semua "bumbu dapur" yang dibutuhkan oleh bot.
+Jalankan perintah ini untuk menginstal semua pustaka Python yang dibutuhkan oleh bot.
 ```bash
 pip install -r requirements.txt
 ```
 
-**Langkah 5: Masukkan Token Rahasia Bot Kamu**
+**Langkah 5: Atur Token Bot Anda**
 
-1.  Buka file `.env` menggunakan editor teks `nano`.
+1.  Salin file konfigurasi contoh.
+    ```bash
+    cp .env.example .env
+    ```
+2.  Buka file `.env` yang baru dibuat menggunakan editor teks seperti `nano`.
     ```bash
     nano .env
     ```
-2.  Di dalamnya, Anda akan melihat baris `TELEGRAM_TOKEN="ISI_TOKEN_ANDA_DISINI"`. Ganti `ISI_TOKEN_ANDA_DISINI` dengan token bot Anda yang didapat dari [@BotFather](https://t.me/BotFather).
-3.  Simpan file dengan menekan `Ctrl` + `X`, lalu `Y`, lalu `Enter`.
+3.  Di dalamnya, ganti `ISI_TOKEN_ANDA_DISINI` dengan token bot Anda yang didapat dari [@BotFather](https://t.me/BotFather).
+4.  Simpan file dengan menekan `Ctrl` + `X`, lalu `Y`, lalu `Enter`.
 
 ---
 
-## 🚀 Cara Menjalankan Bot 🚀
+## 🚀 Menjalankan Bot (Stabil & Otomatis) 🚀
 
-Kalau semua langkah di atas udah beres, sekarang tinggal nyalain botnya!
+Cukup jalankan satu skrip untuk memulai, dan satu skrip untuk berhenti.
 
-### Cara 1: Dijalankan di Latar Belakang (Direkomendasikan)
+### Untuk Memulai Bot:
 
-Ini cara terbaik biar bot tetap hidup meskipun aplikasi Termux kamu tertutup.
+Jalankan skrip `start.sh`. Bot akan secara otomatis berjalan di latar belakang dan akan me-restart sendiri jika terjadi error.
+```bash
+./start.sh
+```
+Anda akan melihat pesan konfirmasi, dan terminal bisa langsung Anda gunakan untuk hal lain.
 
-1.  Pastikan kamu ada di dalam folder `termux_telegram_bot`.
-2.  Jalankan skrip `start.sh`:
-    ```bash
-    ./start.sh
-    ```
-    Bot akan mulai berjalan di latar belakang.
+### Untuk Memantau Log (Opsional):
 
-**Untuk menghentikan bot:**
-Jalankan skrip `stop.sh`:
+Jika Anda ingin melihat aktivitas bot, gunakan perintah ini:
+```bash
+tail -f bot.log
+```
+
+### Untuk Menghentikan Bot:
+
+Jalankan skrip `stop.sh`. Ini akan menghentikan semua proses bot dengan aman.
 ```bash
 ./stop.sh
 ```
-
-### Cara 2: Dijalankan Langsung (Untuk Cek Error/Debugging)
-
-Cara ini cocok kalau kamu mau lihat log atau pesan error secara langsung di layar.
-
-1.  Pastikan kamu ada di dalam folder `termux_telegram_bot`.
-2.  Jalankan perintah ini:
-    ```bash
-    python bot.py
-    ```
-Bot akan berjalan di sesi terminalmu. Untuk mematikannya, cukup tekan `Ctrl` + `C`.
 
 Selamat mencoba!
 
 ---
 
-## 💡 Tips Tambahan: Kalau Gagal Download 💡
+## 💡 Tips Tambahan: Jika Gagal Download 💡
 
-Terkadang, situs seperti YouTube mengubah cara kerja mereka. Jika bot gagal download, coba update `yt-dlp` dengan perintah ini:
+Terkadang, situs seperti YouTube mengubah cara kerja mereka. Jika bot gagal mengunduh, coba perbarui pustaka `yt-dlp` dengan perintah ini:
 ```bash
 pip install --upgrade yt-dlp
 ```
-Lalu, restart botnya.
+Lalu, restart botnya dengan menjalankan `./stop.sh` diikuti `./start.sh`.
