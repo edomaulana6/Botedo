@@ -1,6 +1,6 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, BotCommand
 import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, ConversationHandler
 from yt_dlp import YoutubeDL
@@ -26,7 +26,17 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 
 # States untuk ConversationHandlers
-GET_VIDEO_QUERY, GET_GAMBAR_QUERY, GET_AZAN_QUERY = range(3)
+GET_UNDUH_QUERY, GET_FOTO_QUERY, GET_AZAN_QUERY = range(3)
+
+def format_duration(seconds: int) -> str:
+    """Memformat durasi dari detik menjadi string HH:MM:SS."""
+    if not seconds:
+        return "N/A"
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
 # Fungsi bantuan dan selamat datang
 async def start(update: Update, context: CallbackContext):
@@ -39,8 +49,8 @@ async def start(update: Update, context: CallbackContext):
 async def help_command(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "📚 *Daftar Perintah:*\n\n"
-        "/cari_video <judul> - Mencari 5 video YouTube teratas.\n"
-        "/cari_gambar <kata_kunci> - Mencari 5 gambar teratas dari DuckDuckGo.\n"
+        "/unduh <judul/URL> - Mengunduh video atau audio dari YouTube.\n"
+        "/cari_foto <kata_kunci> - Mencari 5 foto teratas dari DuckDuckGo.\n"
         "/jadwal_azan <daerah> - Menampilkan jadwal azan untuk daerah tertentu.\n"
         "/help - Menampilkan pesan bantuan ini.\n\n"
         "Fitur jadwal JKT48 untuk sementara dinonaktifkan karena tidak ada sumber data yang stabil.\n"
@@ -48,29 +58,83 @@ async def help_command(update: Update, context: CallbackContext):
         parse_mode='Markdown'
     )
 
-# Fungsi untuk cari video
-async def cari_video(update: Update, context: CallbackContext):
+# --- Fungsi untuk Unduh Video/Audio ---
+async def unduh(update: Update, context: CallbackContext):
     if context.args:
         query = " ".join(context.args)
         await perform_search(update.message, query, context)
         return ConversationHandler.END
-    await update.message.reply_text("Silakan masukkan judul video yang ingin Anda cari:")
-    return GET_VIDEO_QUERY
+    await update.message.reply_text("Silakan masukkan judul atau URL YouTube yang ingin Anda unduh:")
+    return GET_UNDUH_QUERY
 
-async def get_video_query(update: Update, context: CallbackContext):
+async def get_unduh_query(update: Update, context: CallbackContext):
     await perform_search(update.message, update.message.text, context)
     return ConversationHandler.END
 
-# Fungsi untuk cari gambar
-async def cari_gambar(update: Update, context: CallbackContext):
+def search_videos_sync(query: str):
+    """Fungsi sinkron untuk mencari video dengan yt-dlp."""
+    ydl_opts = {
+        'format': 'best',
+        'noplaylist': True,
+        'default_search': 'ytsearch1',
+        'quiet': True,
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(f"ytsearch5:{query}", download=False)
+
+async def perform_search(message, query: str, context: CallbackContext):
+    status_msg = await message.reply_text(f"🔎 Mencari `{query}`...", parse_mode='Markdown')
+    try:
+        result = await asyncio.to_thread(search_videos_sync, query)
+        await status_msg.delete()
+
+        if 'entries' in result and result['entries']:
+            await message.reply_text("Berikut adalah hasil pencarian teratas:")
+            for entry in result['entries']:
+                title = entry.get('title', 'N/A')
+                video_url = entry.get('webpage_url', '')
+                thumbnail_url = entry.get('thumbnail')
+                duration_seconds = entry.get('duration')
+                duration_formatted = format_duration(duration_seconds)
+
+                caption = f"{title}\n\nDurasi: {duration_formatted}"
+
+                keyboard = [
+                    [
+                        InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
+                        InlineKeyboardButton("Unduh Audio", callback_data=f"unduh_audio|{video_url}"),
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                if thumbnail_url:
+                    await context.bot.send_photo(
+                        chat_id=message.chat_id,
+                        photo=thumbnail_url,
+                        caption=caption,
+                        reply_markup=reply_markup
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=message.chat_id,
+                        text=caption,
+                        reply_markup=reply_markup
+                    )
+        else:
+            await message.reply_text('Tidak ada hasil yang ditemukan!')
+    except Exception as e:
+        logging.error(f"Error saat mencari: {e}")
+        await status_msg.edit_text("Terjadi kesalahan saat melakukan pencarian.")
+
+# --- Fungsi untuk Cari Foto ---
+async def cari_foto(update: Update, context: CallbackContext):
     if context.args:
         query = " ".join(context.args)
         await perform_gambar_search(update.message, query, context)
         return ConversationHandler.END
-    await update.message.reply_text("Silakan masukkan kata kunci gambar yang ingin Anda cari:")
-    return GET_GAMBAR_QUERY
+    await update.message.reply_text("Silakan masukkan kata kunci foto yang ingin Anda cari:")
+    return GET_FOTO_QUERY
 
-async def get_gambar_query(update: Update, context: CallbackContext):
+async def get_foto_query(update: Update, context: CallbackContext):
     await perform_gambar_search(update.message, update.message.text, context)
     return ConversationHandler.END
 
@@ -82,7 +146,6 @@ def search_images_sync(query: str):
 async def perform_gambar_search(message, query: str, context: CallbackContext):
     status_msg = await message.reply_text(f"🖼️ Mencari gambar untuk `{query}`...", parse_mode='Markdown')
     try:
-        # Menjalankan fungsi sinkron di thread terpisah
         image_urls = await asyncio.to_thread(search_images_sync, query)
         await status_msg.delete()
 
@@ -95,7 +158,7 @@ async def perform_gambar_search(message, query: str, context: CallbackContext):
         logging.error(f"Error saat mencari gambar: {e}")
         await status_msg.edit_text("Terjadi kesalahan saat mencari gambar.")
 
-# Fungsi untuk Jadwal Azan
+# --- Fungsi untuk Jadwal Azan ---
 async def jadwal_azan(update: Update, context: CallbackContext):
     if context.args:
         city = " ".join(context.args)
@@ -108,13 +171,17 @@ async def get_azan_query(update: Update, context: CallbackContext):
     await perform_azan_search(update.message, update.message.text)
     return ConversationHandler.END
 
+def get_azan_times_sync(city: str):
+    """Fungsi sinkron untuk mengambil data jadwal salat."""
+    url = f"http://api.aladhan.com/v1/timingsByCity?city={city}&country=Indonesia&method=20"
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.json()
+
 async def perform_azan_search(message, city: str):
     status_msg = await message.reply_text(f"🕌 Mencari jadwal salat untuk `{city}`...", parse_mode='Markdown')
-    url = f"http://api.aladhan.com/v1/timingsByCity?city={city}&country=Indonesia&method=20"
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = await asyncio.to_thread(get_azan_times_sync, city)
 
         if data['code'] == 200:
             timings = data['data']['timings']
@@ -143,56 +210,9 @@ async def perform_azan_search(message, city: str):
         logging.error(f"Error saat memproses jadwal azan: {e}")
         await status_msg.edit_text("Terjadi kesalahan saat memproses permintaan Anda.")
 
-async def perform_search(message, query: str, context: CallbackContext):
-    status_msg = await message.reply_text(f"🔎 Mencari `{query}`...", parse_mode='Markdown')
-    try:
-        ydl_opts = {
-            'format': 'best',
-            'noplaylist': True,
-            'default_search': 'ytsearch5',
-            'quiet': True,
-        }
-        with YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(f"ytsearch5:{query}", download=False)
-            await status_msg.delete()
-            if 'entries' in result and result['entries']:
-                await message.reply_text("Berikut adalah hasil pencarian teratas:")
-                for entry in result['entries']:
-                    title = entry.get('title', 'N/A')
-                    video_url = entry.get('webpage_url', '')
-                    thumbnail_url = entry.get('thumbnail')
-                    keyboard = [
-                        [
-                            InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
-                            InlineKeyboardButton("Unduh Audio", callback_data=f"unduh_audio|{video_url}"),
-                        ]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    if thumbnail_url:
-                        await context.bot.send_photo(
-                            chat_id=message.chat_id,
-                            photo=thumbnail_url,
-                            caption=title,
-                            reply_markup=reply_markup
-                        )
-                    else:
-                        await context.bot.send_message(
-                            chat_id=message.chat_id,
-                            text=title,
-                            reply_markup=reply_markup
-                        )
-            else:
-                await message.reply_text('Tidak ada hasil yang ditemukan!')
-    except Exception as e:
-        logging.error(f"Error saat mencari: {e}")
-        await status_msg.edit_text("Terjadi kesalahan saat melakukan pencarian.")
-
-# Fungsi untuk unduh video
-async def unduh_video(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-    video_url = query.data.split('|')[1]
-    logging.info(f"Mengunduh video dari {video_url}")
+# --- Fungsi untuk Unduh Video & Audio ---
+def download_video_sync(video_url: str):
+    """Fungsi sinkron untuk mengunduh video."""
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'noplaylist': True,
@@ -200,18 +220,30 @@ async def unduh_video(update: Update, context: CallbackContext):
     with YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(video_url, download=True)
         filename = ydl.prepare_filename(info_dict)
-        await context.bot.send_video(
-            chat_id=query.message.chat_id,
-            video=open(filename, 'rb'),
-            caption=info_dict.get('title')
-        )
+        return filename, info_dict.get('title')
 
-# Fungsi untuk unduh audio
-async def unduh_audio(update: Update, context: CallbackContext):
+async def unduh_video(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     video_url = query.data.split('|')[1]
-    logging.info(f"Mengunduh audio dari {video_url}")
+
+    original_caption = query.message.caption
+    await query.edit_message_caption(caption=f"⏳ Mengunduh video...\n\n{original_caption}")
+
+    try:
+        filename, title = await asyncio.to_thread(download_video_sync, video_url)
+        await context.bot.send_video(
+            chat_id=query.message.chat_id,
+            video=open(filename, 'rb'),
+            caption=title
+        )
+        await query.delete_message()
+    except Exception as e:
+        logging.error(f"Error saat mengunduh video: {e}")
+        await query.edit_message_caption(caption=f"❌ Gagal mengunduh video.\n\n{original_caption}")
+
+def download_audio_sync(video_url: str):
+    """Fungsi sinkron untuk mengunduh audio."""
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'noplaylist': True,
@@ -222,52 +254,69 @@ async def unduh_audio(update: Update, context: CallbackContext):
         info_dict = ydl.extract_info(video_url, download=True)
         filename = ydl.prepare_filename(info_dict)
         filename = os.path.splitext(filename)[0] + '.mp3'
+        return filename, info_dict.get('title')
+
+async def unduh_audio(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+    video_url = query.data.split('|')[1]
+
+    original_caption = query.message.caption
+    await query.edit_message_caption(caption=f"⏳ Mengunduh audio...\n\n{original_caption}")
+
+    try:
+        filename, title = await asyncio.to_thread(download_audio_sync, video_url)
         await context.bot.send_audio(
             chat_id=query.message.chat_id,
             audio=open(filename, 'rb'),
-            caption=info_dict.get('title')
+            caption=title
         )
+        await query.delete_message()
+    except Exception as e:
+        logging.error(f"Error saat mengunduh audio: {e}")
+        await query.edit_message_caption(caption=f"❌ Gagal mengunduh audio.\n\n{original_caption}")
 
 def main():
     application = Application.builder().token(TOKEN).build()
 
-    # Conversation handler untuk pencarian video
-    video_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("cari_video", cari_video)],
-        states={
-            GET_VIDEO_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_video_query)]
-        },
-        fallbacks=[CommandHandler("start", start)],
-    )
-
-    # Conversation handler untuk pencarian gambar
-    gambar_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("cari_gambar", cari_gambar)],
-        states={
-            GET_GAMBAR_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gambar_query)]
-        },
-        fallbacks=[CommandHandler("start", start)],
-    )
-
-    # Conversation handler untuk jadwal azan
-    azan_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("jadwal_azan", jadwal_azan)],
-        states={
-            GET_AZAN_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_azan_query)]
-        },
-        fallbacks=[CommandHandler("start", start)],
-    )
+    # Conversation handlers
+    conv_handlers = {
+        "unduh": ConversationHandler(
+            entry_points=[CommandHandler("unduh", unduh)],
+            states={GET_UNDUH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_unduh_query)]},
+            fallbacks=[CommandHandler("start", start)],
+        ),
+        "cari_foto": ConversationHandler(
+            entry_points=[CommandHandler("cari_foto", cari_foto)],
+            states={GET_FOTO_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_foto_query)]},
+            fallbacks=[CommandHandler("start", start)],
+        ),
+        "jadwal_azan": ConversationHandler(
+            entry_points=[CommandHandler("jadwal_azan", jadwal_azan)],
+            states={GET_AZAN_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_azan_query)]},
+            fallbacks=[CommandHandler("start", start)],
+        )
+    }
 
     # Tambahkan handler
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(video_conv_handler)
-    application.add_handler(gambar_conv_handler)
-    application.add_handler(azan_conv_handler)
+    for handler in conv_handlers.values():
+        application.add_handler(handler)
     application.add_handler(CallbackQueryHandler(unduh_video, pattern='^unduh_video\\|'))
     application.add_handler(CallbackQueryHandler(unduh_audio, pattern='^unduh_audio\\|'))
 
-    # Jalankan bot
+    # Atur perintah bot saat inisialisasi
+    async def post_init(application: Application):
+        commands = [
+            BotCommand("unduh", "Mengunduh video atau audio dari YouTube"),
+            BotCommand("cari_foto", "Mencari foto berdasarkan kata kunci"),
+            BotCommand("jadwal_azan", "Mendapatkan jadwal salat untuk sebuah kota"),
+            BotCommand("help", "Menampilkan pesan bantuan"),
+        ]
+        await application.bot.set_my_commands(commands)
+
+    application.post_init = post_init
     application.run_polling()
 
 if __name__ == '__main__':
