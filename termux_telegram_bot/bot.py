@@ -332,10 +332,10 @@ def main():
     # Atur perintah bot saat inisialisasi
     async def post_init(application: Application):
         commands = [
-            BotCommand("unduh", "Mengunduh video atau audio dari YouTube"),
-            BotCommand("cari_foto", "Mencari foto berdasarkan kata kunci"),
-            BotCommand("jadwal_azan", "Mendapatkan jadwal salat untuk sebuah kota"),
-            BotCommand("help", "Menampilkan pesan bantuan"),
+            BotCommand(command="unduh", description="Mengunduh video atau audio dari YouTube"),
+            BotCommand(command="cari_foto", description="Mencari foto berdasarkan kata kunci"),
+            BotCommand(command="jadwal_azan", description="Mendapatkan jadwal salat untuk sebuah kota"),
+            BotCommand(command="help", description="Menampilkan pesan bantuan"),
         ]
         await application.bot.set_my_commands(commands)
 
