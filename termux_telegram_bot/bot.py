@@ -1,6 +1,6 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, BotCommand
 import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, ConversationHandler
 from yt_dlp import YoutubeDL
@@ -65,7 +65,7 @@ async def unduh(update: Update, context: CallbackContext):
         await perform_search(update.message, query, context)
         return ConversationHandler.END
     await update.message.reply_text("Silakan masukkan judul atau URL YouTube yang ingin Anda unduh:")
-    return GET_VIDEO_QUERY
+    return GET_UNDUH_QUERY
 
 async def get_unduh_query(update: Update, context: CallbackContext):
     await perform_search(update.message, update.message.text, context)
@@ -306,7 +306,17 @@ def main():
     application.add_handler(CallbackQueryHandler(unduh_video, pattern='^unduh_video\\|'))
     application.add_handler(CallbackQueryHandler(unduh_audio, pattern='^unduh_audio\\|'))
 
-    # Jalankan bot
+    # Atur perintah bot saat inisialisasi
+    async def post_init(application: Application):
+        commands = [
+            BotCommand("unduh", "Mengunduh video atau audio dari YouTube"),
+            BotCommand("cari_foto", "Mencari foto berdasarkan kata kunci"),
+            BotCommand("jadwal_azan", "Mendapatkan jadwal salat untuk sebuah kota"),
+            BotCommand("help", "Menampilkan pesan bantuan"),
+        ]
+        await application.bot.set_my_commands(commands)
+
+    application.post_init = post_init
     application.run_polling()
 
 if __name__ == '__main__':
