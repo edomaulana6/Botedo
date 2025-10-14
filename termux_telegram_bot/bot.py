@@ -237,6 +237,7 @@ async def perform_azan_search(message, city: str):
 def download_video_sync(video_url: str):
     """Fungsi sinkron untuk mengunduh video."""
     ydl_opts = {
+        'format': 'bestvideo[height<=720]+bestaudio/best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'noplaylist': True,
     }
