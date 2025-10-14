@@ -66,28 +66,37 @@ pip install -r requirements.txt
 
 ---
 
-## 🚀 Menjalankan Bot (Stabil & Otomatis) 🚀
+## 🚀 Cara Menjalankan Bot 🚀
 
-Cukup jalankan satu skrip untuk memulai, dan satu skrip untuk berhenti.
+Anda bisa memilih dua cara untuk menjalankan bot, sesuai kebutuhan Anda.
 
-### Untuk Memulai Bot:
+### Mode 1: Normal (Untuk Debugging atau Penggunaan Singkat)
 
-Jalankan skrip `start.sh`. Bot akan secara otomatis berjalan di latar belakang dan akan me-restart sendiri jika terjadi error.
+Mode ini akan menjalankan bot langsung di terminal Anda (di *foreground*). Ini berguna jika Anda ingin melihat output atau pesan error secara langsung. Bot akan berhenti jika Anda menutup sesi Termux atau menekan `Ctrl+C`.
+
+**Untuk memulai:**
+```bash
+./run.sh
+```
+**Untuk berhenti:**
+Tekan `Ctrl` + `C` di terminal.
+
+### Mode 2: Stabil (Untuk Penggunaan Jangka Panjang)
+
+Mode ini akan menjalankan bot di latar belakang. Bot akan tetap hidup meskipun Anda menutup aplikasi Termux dan akan secara otomatis me-restart jika terjadi error.
+
+**Untuk memulai:**
 ```bash
 ./start.sh
 ```
 Anda akan melihat pesan konfirmasi, dan terminal bisa langsung Anda gunakan untuk hal lain.
 
-### Untuk Memantau Log (Opsional):
-
-Jika Anda ingin melihat aktivitas bot, gunakan perintah ini:
+**Untuk memantau log (opsional):**
 ```bash
 tail -f bot.log
 ```
 
-### Untuk Menghentikan Bot:
-
-Jalankan skrip `stop.sh`. Ini akan menghentikan semua proses bot dengan aman.
+**Untuk menghentikan:**
 ```bash
 ./stop.sh
 ```
