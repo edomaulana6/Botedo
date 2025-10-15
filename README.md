@@ -10,6 +10,14 @@ Halo! Ini adalah bot Telegram yang dibuat khusus untuk jalan di Termux. Bot ini 
     *   **Cari Cepat**: Pakai perintah `/caricepat`, ketik judul lagu, dan bot bakal langsung kirim file audionya.
 *   **Cari Gambar di Web**: Pakai perintah `/cari_gambar`, kamu bisa cari gambar apa aja dari internet.
 
+*   **Notifikasi Penjaga Admin**: Memberikan peringatan di grup setiap kali ada admin yang diturunkan pangkatnya, agar admin lain bisa segera waspada.
+
+---
+
+## 🛠️ Cara Mengaktifkan Fitur Keamanan 🛠️
+
+Agar fitur **Notifikasi Penjaga Admin** berfungsi, Anda hanya perlu menjadikan bot sebagai **Admin** di grup Anda. Tidak ada izin khusus lainnya yang diperlukan.
+
 ---
 
 ## 🛠️ Cara Pasang di Termux (Gampang Kok!) 🛠️

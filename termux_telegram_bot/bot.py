@@ -2,7 +2,8 @@ import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 import asyncio
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, ConversationHandler
+from telegram.constants import ChatMemberStatus
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, ConversationHandler, ChatMemberHandler
 from yt_dlp import YoutubeDL
 import requests
 from dotenv import load_dotenv
@@ -22,6 +23,34 @@ logging.basicConfig(
 
 # States untuk ConversationHandlers
 GET_VIDEO_QUERY, GET_GAMBAR_QUERY, GET_AZAN_QUERY = range(3)
+
+# --- Fitur Keamanan Grup ---
+async def admin_protector(update: Update, context: CallbackContext) -> None:
+    """Mendeteksi saat seorang admin diturunkan pangkatnya dan mengirim peringatan."""
+    # Ekstrak informasi dari update
+    demoted_user = update.chat_member.new_chat_member.user
+    old_status = update.chat_member.old_chat_member.status
+    new_status = update.chat_member.new_chat_member.status
+
+    # Kondisi yang kita cari: admin diturunkan menjadi member
+    was_admin = old_status == ChatMemberStatus.ADMINISTRATOR
+    is_now_member = new_status == ChatMemberStatus.MEMBER
+
+    if was_admin and is_now_member:
+        logging.info(f"Admin demotion detected in chat {update.effective_chat.id}. User demoted: {demoted_user.id}")
+        try:
+            # Kirim pesan peringatan ke grup
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=(
+                    f"🚨 **PERINGATAN KEAMANAN** 🚨\n\n"
+                    f"Admin {demoted_user.mention_html()} telah diturunkan dari jabatannya.\n\n"
+                    f"Mohon periksa log audit grup untuk melihat siapa yang melakukan tindakan ini."
+                ),
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            logging.error(f"Gagal mengirim pesan peringatan demosi: {e}")
 
 # Fungsi bantuan dan selamat datang
 async def start(update: Update, context: CallbackContext):
@@ -254,6 +283,7 @@ def main():
     )
 
     # Tambahkan handler
+    application.add_handler(ChatMemberHandler(admin_protector, ChatMemberHandler.CHAT_MEMBER))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(video_conv_handler)
