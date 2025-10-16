@@ -77,7 +77,23 @@ Jalankan bot langsung di terminal Anda. Bot akan berhenti jika Anda menutup Term
 
 ## 📖 Cara Menggunakan Bot 📖
 
-Cukup kirim perintah `/menu` ke bot Anda. Semua fitur dapat diakses dari sana. Bot akan memandu Anda melalui tombol-tombol interaktif, sehingga Anda tidak perlu menghafal banyak perintah!
+Cukup kirim perintah `/menu` ke bot Anda. Semua fitur dapat diakses dari sana. Bot akan memandu Anda melalui tombol-tombol interaktif.
+
+### Editor Gambar AI (Fitur Baru!)
+
+Fitur ini memungkinkan Anda mengedit gambar menggunakan AI.
+
+**Persyaratan:**
+1.  Anda **harus** mendapatkan kunci API dari [Google AI Studio](https://aistudio.google.com/) (gratis).
+2.  Masukkan kunci tersebut ke dalam file `.env` Anda pada baris `GEMINI_API_KEY=...`.
+
+**Cara Menggunakan:**
+Balas (reply) sebuah gambar dengan salah satu perintah berikut:
+*   `/edit_ai <instruksi>`: Edit dengan perintah kustom Anda.
+*   `/toanime`: Ubah jadi gaya anime.
+*   `/tofigure`: Ubah jadi action figure.
+*   `/ootd`: Beri gaya OOTD.
+*   ... dan banyak lagi! Lihat daftar lengkap perintah di menu perintah bot.
 
 ---
 
