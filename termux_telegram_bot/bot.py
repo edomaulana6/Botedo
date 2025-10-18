@@ -515,6 +515,10 @@ async def unduh_video(update: Update, context: CallbackContext):
         'progress_hooks': [progress_hook],
     }
 
+    # Cek jika file cookies ada, dan tambahkan ke opsi jika ada
+    if os.path.exists("cookies.txt"):
+        ydl_opts['cookiefile'] = 'cookies.txt'
+
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(video_url, download=True)
@@ -527,8 +531,10 @@ async def unduh_video(update: Update, context: CallbackContext):
             await status_msg.delete()
             os.remove(filename) # Hapus file setelah dikirim
     except Exception as e:
-        logging.error(f"Error saat mengunduh video: {e}")
-        await status_msg.edit_text("Gagal mengunduh video.")
+        error_message = str(e)
+        logging.error(f"Error saat mengunduh video: {error_message}")
+        # Tampilkan pesan error yang lebih informatif
+        await status_msg.edit_text(f"Gagal mengunduh video.\n\nError: `{error_message}`", parse_mode='Markdown')
 
 async def unduh_audio(update: Update, context: CallbackContext):
     """Mengunduh audio dengan progress bar."""
@@ -566,6 +572,10 @@ async def unduh_audio(update: Update, context: CallbackContext):
         'progress_hooks': [progress_hook],
     }
 
+    # Cek jika file cookies ada, dan tambahkan ke opsi jika ada
+    if os.path.exists("cookies.txt"):
+        ydl_opts['cookiefile'] = 'cookies.txt'
+
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(video_url, download=True)
@@ -581,8 +591,9 @@ async def unduh_audio(update: Update, context: CallbackContext):
             if os.path.exists(filename): # Hapus file asli jika ada
                 os.remove(filename)
     except Exception as e:
-        logging.error(f"Error saat mengunduh audio: {e}")
-        await status_msg.edit_text("Gagal mengunduh audio.")
+        error_message = str(e)
+        logging.error(f"Error saat mengunduh audio: {error_message}")
+        await status_msg.edit_text(f"Gagal mengunduh audio.\n\nError: `{error_message}`", parse_mode='Markdown')
 
 def main():
     # Membuat direktori unduhan jika belum ada
