@@ -246,7 +246,7 @@ async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackCo
     """Fungsi inti yang stabil untuk memproses gambar dengan AI."""
     status_msg = await message.reply_text("🎨 Sedang memproses gambar dengan AI, ini mungkin memakan waktu...")
     try:
-        photo_bytes = await asyncio.to_thread(photo_file.download_as_bytearray)
+        photo_bytes = await photo_file.download_as_bytearray()
         img = await asyncio.to_thread(Image.open, io.BytesIO(photo_bytes))
 
         model = genai.GenerativeModel('gemini-pro-vision')
@@ -513,7 +513,10 @@ async def unduh_video(update: Update, context: CallbackContext):
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'noplaylist': True,
         'progress_hooks': [progress_hook],
+        'nocheckcertificate': True,
     }
+    if os.path.exists("cookies.txt"):
+        ydl_opts['cookiefile'] = 'cookies.txt'
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
@@ -525,10 +528,11 @@ async def unduh_video(update: Update, context: CallbackContext):
                 caption=info_dict.get('title')
             )
             await status_msg.delete()
-            os.remove(filename) # Hapus file setelah dikirim
+            os.remove(filename)
     except Exception as e:
-        logging.error(f"Error saat mengunduh video: {e}")
-        await status_msg.edit_text("Gagal mengunduh video.")
+        error_message = str(e)
+        logging.error(f"Error saat mengunduh video: {error_message}")
+        await status_msg.edit_text(f"Gagal mengunduh video.\n\nError: `{error_message}`", parse_mode='Markdown')
 
 async def unduh_audio(update: Update, context: CallbackContext):
     """Mengunduh audio dengan progress bar."""
@@ -564,7 +568,11 @@ async def unduh_audio(update: Update, context: CallbackContext):
         'format': 'bestaudio/best',
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}],
         'progress_hooks': [progress_hook],
+        'nocheckcertificate': True,
     }
+
+    if os.path.exists("cookies.txt"):
+        ydl_opts['cookiefile'] = 'cookies.txt'
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
@@ -577,12 +585,13 @@ async def unduh_audio(update: Update, context: CallbackContext):
                 caption=info_dict.get('title')
             )
             await status_msg.delete()
-            os.remove(mp3_filename) # Hapus file setelah dikirim
-            if os.path.exists(filename): # Hapus file asli jika ada
+            os.remove(mp3_filename)
+            if os.path.exists(filename):
                 os.remove(filename)
     except Exception as e:
-        logging.error(f"Error saat mengunduh audio: {e}")
-        await status_msg.edit_text("Gagal mengunduh audio.")
+        error_message = str(e)
+        logging.error(f"Error saat mengunduh audio: {error_message}")
+        await status_msg.edit_text(f"Gagal mengunduh audio.\n\nError: `{error_message}`", parse_mode='Markdown')
 
 def main():
     # Membuat direktori unduhan jika belum ada

@@ -99,10 +99,25 @@ Fitur ini sangat mudah digunakan: cukup **balas (reply) sebuah gambar** dengan s
 
 ---
 
-## 💡 Tips Tambahan 💡
+## 💡 Tips Tambahan: Mengatasi Gagal Unduh dari Facebook/Instagram 💡
 
-Jika unduhan gagal, coba perbarui pustaka `yt-dlp` dengan:
-```bash
-pip install --upgrade yt-dlp
-```
-Lalu, restart botnya (`./stop.sh` lalu `./start.sh`).
+Beberapa situs seperti Facebook, Instagram, dan lainnya memerlukan Anda untuk login agar bisa mengunduh konten. Agar bot bisa melakukannya, Anda perlu memberikannya "kunci masuk" berupa file cookies.
+
+**Cara Mendapatkan `cookies.txt` (Hanya perlu dilakukan sekali):**
+
+1.  **Gunakan Browser di Komputer (Chrome/Firefox).**
+2.  Instal ekstensi browser bernama **"Get cookies.txt"**. Ekstensi ini aman dan banyak digunakan.
+3.  Buka situs yang Anda inginkan (misalnya, `facebook.com`) dan **login** ke akun Anda.
+4.  Klik ikon ekstensi "Get cookies.txt" (biasanya ikon kue), lalu klik **"Export"**. Ini akan mengunduh file bernama `cookies.txt`.
+
+**Cara Menggunakan `cookies.txt` di Termux:**
+
+1.  Pindahkan file `cookies.txt` yang baru Anda unduh dari komputer ke penyimpanan internal ponsel Anda (misalnya ke folder "Download").
+2.  Buka Termux dan jalankan perintah ini untuk menyalin file cookies ke direktori bot Anda:
+    ```bash
+    cp /sdcard/Download/cookies.txt ~/termux_telegram_bot/cookies.txt
+    ```
+    *(Catatan: Ganti `/sdcard/Download/` jika Anda menyimpannya di lokasi lain).*
+3.  Restart bot Anda (`./stop.sh` lalu `./start.sh`).
+
+Sekarang, bot akan secara otomatis menggunakan cookies tersebut setiap kali mengunduh, memungkinkannya mengakses konten yang memerlukan login. Jika unduhan masih gagal, coba ekspor ulang file `cookies.txt` Anda karena mungkin sudah kedaluwarsa.
