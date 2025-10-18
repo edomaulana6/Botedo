@@ -249,7 +249,7 @@ async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackCo
         photo_bytes = await photo_file.download_as_bytearray()
         img = await asyncio.to_thread(Image.open, io.BytesIO(photo_bytes))
 
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        model = genai.GenerativeModel('gemini-2.5-flash-image')
         response = await asyncio.to_thread(model.generate_content, [prompt, img])
 
         image_data = response.parts[0].inline_data.data
