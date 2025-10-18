@@ -249,7 +249,7 @@ async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackCo
         photo_bytes = await photo_file.download_as_bytearray()
         img = await asyncio.to_thread(Image.open, io.BytesIO(photo_bytes))
 
-        model = genai.GenerativeModel('gemini-pro-vision')
+        model = genai.GenerativeModel('gemini-1.0-pro-vision')
         response = await asyncio.to_thread(model.generate_content, [prompt, img])
 
         image_data = response.parts[0].inline_data.data
@@ -499,15 +499,11 @@ async def unduh_video(update: Update, context: CallbackContext):
                 # Hanya edit pesan setiap kelipatan 10% untuk menghindari spam
                 if percent // 10 > last_reported_percent // 10:
                     last_reported_percent = percent
-                    asyncio.run_coroutine_threadsafe(
-                        status_msg.edit_text(f"⏳ Mengunduh video... {percent}%"),
-                        context.application.loop
-                    )
+                    loop = asyncio.get_running_loop()
+                    loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text(f"⏳ Mengunduh video... {percent}%"))
         elif d['status'] == 'finished':
-             asyncio.run_coroutine_threadsafe(
-                status_msg.edit_text("✅ Video selesai diunduh, sedang mengirim..."),
-                context.application.loop
-            )
+             loop = asyncio.get_running_loop()
+             loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text("✅ Video selesai diunduh, sedang mengirim..."))
 
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
@@ -552,15 +548,11 @@ async def unduh_audio(update: Update, context: CallbackContext):
                 percent = int((downloaded_bytes / total_bytes) * 100)
                 if percent // 10 > last_reported_percent // 10:
                     last_reported_percent = percent
-                    asyncio.run_coroutine_threadsafe(
-                        status_msg.edit_text(f"⏳ Mengunduh audio... {percent}%"),
-                        context.application.loop
-                    )
+                    loop = asyncio.get_running_loop()
+                    loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text(f"⏳ Mengunduh audio... {percent}%"))
         elif d['status'] == 'finished':
-            asyncio.run_coroutine_threadsafe(
-                status_msg.edit_text("✅ Audio selesai diunduh, sedang memproses & mengirim..."),
-                context.application.loop
-            )
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text("✅ Audio selesai diunduh, sedang memproses & mengirim..."))
 
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
