@@ -88,7 +88,9 @@ Fitur ini memungkinkan Anda mengedit gambar menggunakan AI.
 2.  Masukkan kunci tersebut ke dalam file `.env` Anda pada baris `GEMINI_API_KEY=...`.
 
 **Cara Menggunakan:**
-Balas (reply) sebuah gambar dengan salah satu perintah berikut:
+Fitur ini sangat mudah digunakan: cukup **balas (reply) sebuah gambar** dengan salah satu perintah AI yang tersedia.
+
+**Contoh Perintah:**
 *   `/edit_ai <instruksi>`: Edit dengan perintah kustom Anda.
 *   `/toanime`: Ubah jadi gaya anime.
 *   `/tofigure`: Ubah jadi action figure.

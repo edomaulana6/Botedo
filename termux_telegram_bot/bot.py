@@ -3,7 +3,7 @@ import logging
 import io
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 import asyncio
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler, ConversationHandler
 from yt_dlp import YoutubeDL
 import requests
 from dotenv import load_dotenv
@@ -133,61 +133,83 @@ async def ai_editor_menu(update: Update, context: CallbackContext) -> None:
     )
     await query.edit_message_text(text=text, reply_markup=reply_markup)
 
-async def handle_next_action(update: Update, context: CallbackContext):
-    """Menangani pesan teks berdasarkan status yang tersimpan di user_data."""
-    next_action = context.user_data.get('next_action')
-    if not next_action:
-        return
+# States untuk ConversationHandlers
+GET_UNDUH_QUERY, GET_GAMBAR_QUERY, GET_GOOGLE_QUERY, GET_AZAN_QUERY, GET_AI_IMAGE = range(5)
 
-    query = update.message.text
-
-    if next_action == 'unduh':
-        await process_download_request(update.message, query, context)
-    elif next_action == 'cari_gambar':
-        await perform_gambar_search(update.message, query, context)
-    elif next_action == 'google_search':
-        await perform_google_search(update.message, query)
-    elif next_action == 'jadwal_azan':
-        await perform_azan_search(update.message, query)
-
-    # Hapus status setelah selesai
-    del context.user_data['next_action']
-
-async def start_unduh_from_menu(update: Update, context: CallbackContext):
-    """Memulai alur unduh dari menu."""
+# --- Fungsi Pemula untuk ConversationHandler dari Menu ---
+async def start_unduh_from_menu(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
-    context.user_data['next_action'] = 'unduh'
     await query.edit_message_text("Silakan kirimkan URL atau judul untuk diunduh:")
+    return GET_UNDUH_QUERY
 
-async def start_image_search_from_menu(update: Update, context: CallbackContext):
-    """Memulai alur pencarian gambar dari menu."""
+async def start_image_search_from_menu(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
-    context.user_data['next_action'] = 'cari_gambar'
     await query.edit_message_text("Silakan masukkan kata kunci gambar yang ingin Anda cari:")
+    return GET_GAMBAR_QUERY
 
-async def start_azan_search_from_menu(update: Update, context: CallbackContext):
-    """Memulai alur jadwal azan dari menu."""
+async def start_google_search_from_menu(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
-    context.user_data['next_action'] = 'jadwal_azan'
+    await query.edit_message_text("Silakan masukkan kata kunci pencarian Google:")
+    return GET_GOOGLE_QUERY
+
+async def start_azan_search_from_menu(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
     await query.edit_message_text("Masukkan nama kota di Indonesia (contoh: Jakarta):")
+    return GET_AZAN_QUERY
 
-# --- Fungsi Perintah Utama ---
+# --- Fungsi Perintah Utama & State Handlers ---
 
-async def unduh(update: Update, context: CallbackContext):
+async def unduh(update: Update, context: CallbackContext) -> int:
     if context.args:
         query = " ".join(context.args)
         await process_download_request(update.message, query, context)
+        return ConversationHandler.END
     else:
-        context.user_data['next_action'] = 'unduh'
         await update.message.reply_text("Silakan masukkan URL atau judul untuk diunduh:")
+        return GET_UNDUH_QUERY
 
-async def cari_gambar(update: Update, context: CallbackContext):
+async def get_unduh_query(update: Update, context: CallbackContext) -> int:
+    await process_download_request(update.message, update.message.text, context)
+    return ConversationHandler.END
+
+async def cari_gambar(update: Update, context: CallbackContext) -> int:
     if context.args:
         query = " ".join(context.args)
         await perform_gambar_search(update.message, query, context)
+        return ConversationHandler.END
     else:
-        context.user_data['next_action'] = 'cari_gambar'
         await update.message.reply_text("Silakan masukkan kata kunci gambar yang ingin Anda cari:")
+        return GET_GAMBAR_QUERY
+
+async def get_gambar_query(update: Update, context: CallbackContext) -> int:
+    await perform_gambar_search(update.message, update.message.text, context)
+    return ConversationHandler.END
+
+async def google_search_command(update: Update, context: CallbackContext) -> int:
+    if context.args:
+        query = " ".join(context.args)
+        await perform_google_search(update.message, query)
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text("Silakan masukkan kata kunci pencarian Google:")
+        return GET_GOOGLE_QUERY
+
+async def get_google_query(update: Update, context: CallbackContext) -> int:
+    await perform_google_search(update.message, update.message.text)
+    return ConversationHandler.END
+
+async def jadwal_azan(update: Update, context: CallbackContext) -> int:
+    if context.args:
+        city = " ".join(context.args)
+        await perform_azan_search(update.message, city)
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text("Masukkan nama kota di Indonesia (contoh: Jakarta):")
+        return GET_AZAN_QUERY
+
+async def get_azan_query(update: Update, context: CallbackContext) -> int:
+    await perform_azan_search(update.message, update.message.text)
+    return ConversationHandler.END
 
 def search_images_sync(query: str):
     """Fungsi sinkron untuk menjalankan pencarian gambar."""
@@ -218,90 +240,100 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# --- Fitur AI Image Editor ---
+# --- Fitur AI Image Editor (dengan ConversationHandler) ---
 
-async def edit_image_with_ai(update: Update, context: CallbackContext, prompt: str):
-    """Fungsi inti yang stabil untuk mengedit gambar menggunakan AI Gemini."""
-    if not GEMINI_API_KEY:
-        await update.message.reply_text("Fitur AI tidak aktif. Kunci API Gemini belum diatur di file .env")
-        return
-
-    if not update.message.reply_to_message or not update.message.reply_to_message.photo:
-        await update.message.reply_text("Silakan balas sebuah gambar untuk diedit dengan perintah ini.")
-        return
-
-    status_msg = await update.message.reply_text("🎨 Sedang memproses gambar dengan AI, ini mungkin memakan waktu...")
-
+async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackContext):
+    """Fungsi inti yang stabil untuk memproses gambar dengan AI."""
+    status_msg = await message.reply_text("🎨 Sedang memproses gambar dengan AI, ini mungkin memakan waktu...")
     try:
-        photo_file = await update.message.reply_to_message.photo[-1].get_file()
-
-        # Menggunakan asyncio.to_thread untuk operasi I/O yang memblokir
         photo_bytes = await asyncio.to_thread(photo_file.download_as_bytearray)
         img = await asyncio.to_thread(Image.open, io.BytesIO(photo_bytes))
 
         model = genai.GenerativeModel('gemini-pro-vision')
-        # Menjalankan model generatif di thread terpisah
         response = await asyncio.to_thread(model.generate_content, [prompt, img])
 
-        # Mengakses data gambar dari respons
         image_data = response.parts[0].inline_data.data
 
         await context.bot.send_photo(
-            chat_id=update.effective_chat.id,
+            chat_id=message.chat_id,
             photo=image_data,
             caption=f"Berikut adalah hasil edit dengan prompt: \"{prompt}\""
         )
         await status_msg.delete()
-
     except Exception as e:
         logging.error(f"Error saat mengedit gambar dengan AI: {e}")
         await status_msg.edit_text(f"Terjadi kesalahan saat memproses gambar dengan AI: {e}")
 
+async def _ai_command_entry_point(update: Update, context: CallbackContext, prompt: str, ask_message: str) -> int:
+    """Titik masuk untuk semua perintah AI, menentukan alur percakapan."""
+    if not GEMINI_API_KEY:
+        await update.message.reply_text("Fitur AI tidak aktif. Kunci API Gemini belum diatur.")
+        return ConversationHandler.END
+
+    if update.message.reply_to_message and update.message.reply_to_message.photo:
+        photo_file = await update.message.reply_to_message.photo[-1].get_file()
+        await _process_ai_edit(update.message.reply_to_message, photo_file, prompt, context)
+        return ConversationHandler.END
+    else:
+        context.user_data['ai_prompt'] = prompt
+        await update.message.reply_text(ask_message)
+        return GET_AI_IMAGE
+
+async def get_ai_image(update: Update, context: CallbackContext) -> int:
+    """Menangani gambar yang dikirim setelah diminta oleh bot."""
+    prompt = context.user_data.pop('ai_prompt', 'Tidak ada prompt yang diberikan.')
+    photo_file = await update.message.photo[-1].get_file()
+    await _process_ai_edit(update.message, photo_file, prompt, context)
+    return ConversationHandler.END
+
+async def cancel_ai(update: Update, context: CallbackContext) -> int:
+    """Membatalkan alur percakapan AI."""
+    await update.message.reply_text('Aksi edit gambar dibatalkan.')
+    return ConversationHandler.END
+
 # --- Perintah Preset untuk AI ---
+async def toanime_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah gambar ini menjadi gaya anime.", "Baik, sekarang kirim gambar yang ingin diubah menjadi anime.")
 
-async def toanime_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah gambar ini menjadi gaya anime.")
+async def tofigure_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah orang di gambar ini menjadi action figure yang realistis.", "Baik, sekarang kirim gambar yang ingin diubah menjadi action figure.")
 
-async def tofigure_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah orang di gambar ini menjadi action figure yang realistis.")
+async def cinematic_lift_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Berikan efek sinematik dramatis pada gambar ini.", "Baik, sekarang kirim gambar untuk diberi efek sinematik.")
 
-async def cinematic_lift_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Berikan efek sinematik dramatis pada gambar ini, seolah-olah diambil di dalam lift dengan pencahayaan profesional.")
+async def ootd_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Berikan gaya OOTD (Outfit of The Day) yang modis pada orang di gambar ini.", "Baik, sekarang kirim gambar yang ingin diberi gaya OOTD.")
 
-async def ootd_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Berikan gaya OOTD (Outfit of The Day) yang modis pada orang di gambar ini.")
+async def hitamkan_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah warna kulit orang di gambar ini menjadi lebih gelap.", "Baik, sekarang kirim gambar yang warna kulitnya ingin digelapkan.")
 
-async def hitamkan_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah warna kulit orang di gambar ini menjadi lebih gelap.")
+async def putihkan_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah warna kulit orang di gambar ini menjadi lebih cerah.", "Baik, sekarang kirim gambar yang warna kulitnya ingin dicerahkan.")
 
-async def putihkan_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah warna kulit orang di gambar ini menjadi lebih cerah.")
+async def night_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah suasana gambar ini menjadi malam hari.", "Baik, sekarang kirim gambar yang ingin diubah suasananya menjadi malam.")
 
-async def night_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah suasana gambar ini menjadi malam hari.")
+async def pretty_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Edit wajah orang di gambar ini agar terlihat lebih cantik atau tampan.", "Baik, sekarang kirim gambar yang ingin dipercantik.")
 
-async def pretty_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Edit wajah orang di gambar ini agar terlihat lebih cantik atau tampan seperti model.")
+async def ugly_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Edit wajah orang di gambar ini menjadi sangat jelek dan lucu.", "Baik, sekarang kirim gambar yang ingin dibuat jelek.")
 
-async def ugly_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Edit wajah orang di gambar ini menjadi sangat jelek dan lucu.")
+async def sedih_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah ekspresi wajah orang di gambar ini menjadi sedih.", "Baik, sekarang kirim gambar yang ekspresinya ingin diubah menjadi sedih.")
 
-async def sedih_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah ekspresi wajah orang di gambar ini menjadi sedih.")
+async def senyum_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Ubah ekspresi wajah orang di gambar ini menjadi tersenyum.", "Baik, sekarang kirim gambar yang ekspresinya ingin diubah menjadi senyum.")
 
-async def senyum_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Ubah ekspresi wajah orang di gambar ini menjadi tersenyum bahagia.")
+async def botakin_command(update: Update, context: CallbackContext) -> int:
+    return await _ai_command_entry_point(update, context, "Hilangkan semua rambut dari kepala orang di gambar ini (botakin).", "Baik, sekarang kirim gambar yang ingin dibotakin.")
 
-async def botakin_command(update: Update, context: CallbackContext):
-    await edit_image_with_ai(update, context, "Hilangkan semua rambut dari kepala orang di gambar ini (botakin).")
-
-async def edit_ai_command(update: Update, context: CallbackContext):
-    """Mengedit gambar dengan prompt kustom dari pengguna."""
+async def edit_ai_command(update: Update, context: CallbackContext) -> int:
     prompt = " ".join(context.args)
     if not prompt:
-        await update.message.reply_text("Silakan berikan instruksi setelah perintah. Contoh: /edit_ai ubah latar belakang menjadi luar angkasa.")
-        return
-    await edit_image_with_ai(update, context, prompt)
+        await update.message.reply_text("Anda harus memberikan instruksi. Contoh: /edit_ai ubah latar belakang menjadi luar angkasa.")
+        return ConversationHandler.END
+    return await _ai_command_entry_point(update, context, prompt, f"Baik, prompt Anda adalah \"{prompt}\". Sekarang, kirimkan gambar yang ingin diedit.")
 
 
 # --- Fitur Google Search ---
@@ -558,37 +590,66 @@ def main():
 
     application = Application.builder().token(TOKEN).post_init(post_init).build()
 
+    # Conversation Handlers
+    unduh_conv = ConversationHandler(
+        entry_points=[CommandHandler("unduh", unduh), CallbackQueryHandler(start_unduh_from_menu, pattern='^start_video$')],
+        states={GET_UNDUH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_unduh_query)]},
+        fallbacks=[CommandHandler("start", start)],
+    )
+    gambar_conv = ConversationHandler(
+        entry_points=[CommandHandler("cari_gambar", cari_gambar), CallbackQueryHandler(start_image_search_from_menu, pattern='^start_gambar$')],
+        states={GET_GAMBAR_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gambar_query)]},
+        fallbacks=[CommandHandler("start", start)],
+    )
+    google_conv = ConversationHandler(
+        entry_points=[CommandHandler("google", google_search_command), CallbackQueryHandler(start_google_search_from_menu, pattern='^start_google$')],
+        states={GET_GOOGLE_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_google_query)]},
+        fallbacks=[CommandHandler("start", start)],
+    )
+    azan_conv = ConversationHandler(
+        entry_points=[CommandHandler("jadwal_azan", jadwal_azan), CallbackQueryHandler(start_azan_search_from_menu, pattern='^start_azan$')],
+        states={GET_AZAN_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_azan_query)]},
+        fallbacks=[CommandHandler("start", start)],
+    )
+
     # Tambahkan handler
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("menu", main_menu))
-    application.add_handler(CommandHandler("unduh", unduh))
-    application.add_handler(CommandHandler("cari_gambar", cari_gambar))
-    application.add_handler(CommandHandler("google", google_search_command))
-    application.add_handler(CommandHandler("jadwal_azan", jadwal_azan))
 
-    # AI Editor handlers
-    application.add_handler(CommandHandler("toanime", toanime_command))
-    application.add_handler(CommandHandler("tofigure", tofigure_command))
-    application.add_handler(CommandHandler("cinematic_lift", cinematic_lift_command))
-    application.add_handler(CommandHandler("ootd", ootd_command))
-    application.add_handler(CommandHandler("hitamkan", hitamkan_command))
-    application.add_handler(CommandHandler("putihkan", putihkan_command))
-    application.add_handler(CommandHandler("night", night_command))
-    application.add_handler(CommandHandler("pretty", pretty_command))
-    application.add_handler(CommandHandler("ugly", ugly_command))
-    application.add_handler(CommandHandler("sedih", sedih_command))
-    application.add_handler(CommandHandler("senyum", senyum_command))
-    application.add_handler(CommandHandler("botakin", botakin_command))
-    application.add_handler(CommandHandler("edit_ai", edit_ai_command))
+    application.add_handler(unduh_conv)
+    application.add_handler(gambar_conv)
+    application.add_handler(google_conv)
+    application.add_handler(azan_conv)
 
-    application.add_handler(CallbackQueryHandler(button_callback_handler))
+    # AI Editor Conversation Handler
+    ai_conv = ConversationHandler(
+        entry_points=[
+            CommandHandler("toanime", toanime_command),
+            CommandHandler("tofigure", tofigure_command),
+            CommandHandler("cinematic_lift", cinematic_lift_command),
+            CommandHandler("ootd", ootd_command),
+            CommandHandler("hitamkan", hitamkan_command),
+            CommandHandler("putihkan", putihkan_command),
+            CommandHandler("night", night_command),
+            CommandHandler("pretty", pretty_command),
+            CommandHandler("ugly", ugly_command),
+            CommandHandler("sedih", sedih_command),
+            CommandHandler("senyum", senyum_command),
+            CommandHandler("botakin", botakin_command),
+            CommandHandler("edit_ai", edit_ai_command),
+        ],
+        states={
+            GET_AI_IMAGE: [MessageHandler(filters.PHOTO, get_ai_image)],
+        },
+        fallbacks=[CommandHandler("batal", cancel_ai)],
+    )
+    application.add_handler(ai_conv)
+
+    # Handler unduhan harus didaftarkan SEBELUM handler tombol umum
     application.add_handler(CallbackQueryHandler(unduh_video, pattern='^unduh_video\\|'))
     application.add_handler(CallbackQueryHandler(unduh_audio, pattern='^unduh_audio\\|'))
-
-    # Handler untuk memproses input teks setelah tombol menu ditekan
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_next_action))
-
+    application.add_handler(CallbackQueryHandler(button_callback_handler))
 
     # Jalankan bot
     application.run_polling()
