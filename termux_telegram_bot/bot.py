@@ -249,7 +249,7 @@ async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackCo
         photo_bytes = await photo_file.download_as_bytearray()
         img = await asyncio.to_thread(Image.open, io.BytesIO(photo_bytes))
 
-        model = genai.GenerativeModel('gemini-2.5-flash-image')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = await asyncio.to_thread(model.generate_content, [prompt, img])
 
         image_data = response.parts[0].inline_data.data
@@ -261,8 +261,13 @@ async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackCo
         )
         await status_msg.delete()
     except Exception as e:
-        logging.error(f"Error saat mengedit gambar dengan AI: {e}")
-        await status_msg.edit_text(f"Terjadi kesalahan saat memproses gambar dengan AI: {e}")
+        error_message = str(e)
+        logging.error(f"Error saat mengedit gambar dengan AI: {error_message}")
+        if "Quota exceeded" in error_message:
+            user_friendly_error = "Maaf, kuota penggunaan AI gratis untuk hari ini telah habis. Silakan coba lagi besok."
+            await status_msg.edit_text(user_friendly_error)
+        else:
+            await status_msg.edit_text(f"Terjadi kesalahan saat memproses gambar dengan AI: Timed out")
 
 async def _ai_command_entry_point(update: Update, context: CallbackContext, prompt: str, ask_message: str) -> int:
     """Titik masuk untuk semua perintah AI, menentukan alur percakapan."""
@@ -425,7 +430,6 @@ async def perform_azan_search(message, city: str):
 async def process_download_request(message, query: str, context: CallbackContext):
     status_msg = await message.reply_text(f"🔎 Memproses `{query}`...", parse_mode='Markdown')
     try:
-        # Tentukan apakah query adalah URL atau kata kunci pencarian
         is_url = query.strip().startswith('http')
         search_query = query if is_url else f"ytsearch5:{query}"
 
@@ -435,47 +439,50 @@ async def process_download_request(message, query: str, context: CallbackContext
             'quiet': True,
         }
 
-        with YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(search_query, download=False)
-            await status_msg.delete()
+        result = await asyncio.to_thread(YoutubeDL(ydl_opts).extract_info, search_query, download=False)
+        await status_msg.delete()
 
-            # Jika input adalah URL, result mungkin tidak memiliki 'entries'
-            # jadi kita bungkus dalam list agar bisa di-loop
-            entries = result.get('entries', [result] if 'id' in result else [])
+        entries = result.get('entries', [])
+        # Jika bukan list (misalnya link langsung), bungkus dalam list
+        if not isinstance(entries, list):
+            entries = [result]
 
-            if entries:
-                await message.reply_text("Berikut adalah hasilnya:")
-                for entry in entries:
-                    title = entry.get('title', 'N/A')
-                    video_url = entry.get('webpage_url', entry.get('original_url', ''))
-                    thumbnail_url = entry.get('thumbnail')
+        if not entries:
+            await message.reply_text('Tidak ada hasil yang ditemukan atau URL tidak valid!')
+            return
 
-                    keyboard = [
-                        [
-                            InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
-                            InlineKeyboardButton("Unduh Audio", callback_data=f"unduh_audio|{video_url}"),
-                        ]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
+        await message.reply_text("Berikut adalah hasilnya:")
+        for entry in entries:
+            if not entry: continue # Lewati jika entri kosong
 
-                    if thumbnail_url:
-                        await context.bot.send_photo(
-                            chat_id=message.chat_id,
-                            photo=thumbnail_url,
-                            caption=title,
-                            reply_markup=reply_markup
-                        )
-                    else:
-                        await context.bot.send_message(
-                            chat_id=message.chat_id,
-                            text=title,
-                            reply_markup=reply_markup
-                        )
+            title = entry.get('title', 'N/A')
+            video_url = entry.get('webpage_url', entry.get('original_url', ''))
+            thumbnail_url = entry.get('thumbnail')
+
+            keyboard = [
+                [
+                    InlineKeyboardButton("Unduh Video", callback_data=f"unduh_video|{video_url}"),
+                    InlineKeyboardButton("Unduh Audio", callback_data=f"unduh_audio|{video_url}"),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            if thumbnail_url:
+                await context.bot.send_photo(
+                    chat_id=message.chat_id,
+                    photo=thumbnail_url,
+                    caption=title,
+                    reply_markup=reply_markup
+                )
             else:
-                await message.reply_text('Tidak ada hasil yang ditemukan atau URL tidak valid!')
+                await context.bot.send_message(
+                    chat_id=message.chat_id,
+                    text=title,
+                    reply_markup=reply_markup
+                )
     except Exception as e:
-        logging.error(f"Error saat mencari: {e}")
-        await status_msg.edit_text("Terjadi kesalahan saat melakukan pencarian.")
+        logging.error(f"Error saat memproses permintaan unduh: {e}")
+        await status_msg.edit_text(f"Terjadi kesalahan saat memproses permintaan: {e}")
 
 # --- Fungsi Unduh dengan Progress Hook ---
 
@@ -589,7 +596,8 @@ def main():
     # Membuat direktori unduhan jika belum ada
     os.makedirs("downloads", exist_ok=True)
 
-    application = Application.builder().token(TOKEN).post_init(post_init).build()
+    # Tingkatkan batas waktu untuk mengakomodasi tugas AI yang lama
+    application = Application.builder().token(TOKEN).post_init(post_init).read_timeout(300).write_timeout(300).build()
 
     # Conversation Handlers
     unduh_conv = ConversationHandler(
