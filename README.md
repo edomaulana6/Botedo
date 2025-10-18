@@ -120,4 +120,4 @@ Beberapa situs seperti Facebook, Instagram, dan lainnya memerlukan Anda untuk lo
     *(Catatan: Ganti `/sdcard/Download/` jika Anda menyimpannya di lokasi lain).*
 3.  Restart bot Anda (`./stop.sh` lalu `./start.sh`).
 
-Sekarang, bot akan secara otomatis menggunakan cookies tersebut setiap kali mengunduh, memungkinkannya mengakses konten yang memerlukan login.
+Sekarang, bot akan secara otomatis menggunakan cookies tersebut setiap kali mengunduh, memungkinkannya mengakses konten yang memerlukan login. Jika unduhan masih gagal, coba ekspor ulang file `cookies.txt` Anda karena mungkin sudah kedaluwarsa.
