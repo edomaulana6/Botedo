@@ -233,6 +233,7 @@ async def perform_gambar_search(message, query: str, context: CallbackContext):
         await status_msg.edit_text("Terjadi kesalahan saat mencari gambar.")
 
 import google.generativeai as genai
+from google.api_core import exceptions
 from PIL import Image
 
 # --- Konfigurasi API Tambahan ---
@@ -242,32 +243,65 @@ if GEMINI_API_KEY:
 
 # --- Fitur AI Image Editor (dengan ConversationHandler) ---
 
+def _process_ai_edit_sync(photo_bytes: bytearray, prompt: str) -> bytes:
+    """
+    Fungsi SINKRON yang memproses gambar dengan AI.
+    Fungsi ini sengaja dibuat blocking dan harus dijalankan di thread terpisah.
+    Ini akan melempar exception jika gagal, yang akan ditangkap oleh pembungkus async.
+    """
+    image_part = {
+        "mime_type": "image/jpeg",
+        "data": photo_bytes
+    }
+    model = genai.GenerativeModel('gemini-1.5-pro-latest')
+
+    # Panggilan API sinkron/blocking dengan timeout
+    response = model.generate_content(
+        [prompt, image_part],
+        request_options={"timeout": 60}
+    )
+
+    if not response.parts:
+        raise ValueError("Respons AI tidak berisi data gambar, mungkin karena konten tidak pantas atau error lain.")
+
+    return response.parts[0].inline_data.data
+
 async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackContext):
-    """Fungsi inti yang stabil untuk memproses gambar dengan AI."""
+    """
+    Fungsi ASINKRON yang menjadi pembungkus untuk pemrosesan AI.
+    Ini menangani I/O asinkron dan menjalankan pemrosesan AI yang sinkron di thread lain.
+    """
     status_msg = await message.reply_text("🎨 Sedang memproses gambar dengan AI, ini mungkin memakan waktu...")
     try:
+        # 1. Lakukan I/O asinkron untuk mendapatkan bytes gambar
         photo_bytes = await photo_file.download_as_bytearray()
-        img = await asyncio.to_thread(Image.open, io.BytesIO(photo_bytes))
 
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = await asyncio.to_thread(model.generate_content, [prompt, img])
+        # 2. Jalankan fungsi sinkron yang memblokir di thread terpisah
+        image_data = await asyncio.to_thread(
+            _process_ai_edit_sync, photo_bytes, prompt
+        )
 
-        image_data = response.parts[0].inline_data.data
-
+        # 3. Kirim hasilnya secara asinkron
         await context.bot.send_photo(
             chat_id=message.chat_id,
             photo=image_data,
             caption=f"Berikut adalah hasil edit dengan prompt: \"{prompt}\""
         )
         await status_msg.delete()
+
+    # 4. Tangkap exception spesifik yang dilempar dari thread
+    except exceptions.ResourceExhausted as e:
+        logging.error(f"Quota error saat mengedit gambar dengan AI: {e}")
+        await status_msg.edit_text("Maaf, kuota penggunaan AI gratis untuk hari ini telah habis. Silakan coba lagi besok.")
+    except exceptions.DeadlineExceeded as e:
+        logging.error(f"Timeout error saat mengedit gambar dengan AI: {e}")
+        await status_msg.edit_text("Maaf, permintaan ke AI memakan waktu terlalu lama (timed out). Silakan coba lagi nanti.")
+    except ValueError as e:
+        logging.error(f"Value error (respons tidak valid) saat mengedit gambar dengan AI: {e}")
+        await status_msg.edit_text(f"Gagal memproses respons dari AI: {e}")
     except Exception as e:
-        error_message = str(e)
-        logging.error(f"Error saat mengedit gambar dengan AI: {error_message}")
-        if "Quota exceeded" in error_message:
-            user_friendly_error = "Maaf, kuota penggunaan AI gratis untuk hari ini telah habis. Silakan coba lagi besok."
-            await status_msg.edit_text(user_friendly_error)
-        else:
-            await status_msg.edit_text(f"Terjadi kesalahan saat memproses gambar dengan AI: Timed out")
+        logging.error(f"Error tak terduga saat mengedit gambar dengan AI: {e}")
+        await status_msg.edit_text("Terjadi kesalahan tak terduga saat memproses gambar Anda.")
 
 async def _ai_command_entry_point(update: Update, context: CallbackContext, prompt: str, ask_message: str) -> int:
     """Titik masuk untuk semua perintah AI, menentukan alur percakapan."""
@@ -442,12 +476,15 @@ async def process_download_request(message, query: str, context: CallbackContext
         result = await asyncio.to_thread(YoutubeDL(ydl_opts).extract_info, search_query, download=False)
         await status_msg.delete()
 
-        entries = result.get('entries', [])
-        # Jika bukan list (misalnya link langsung), bungkus dalam list
-        if not isinstance(entries, list):
+        # Logika baru yang andal: Periksa apakah ini hasil pencarian atau URL tunggal
+        if 'entries' in result:
+            # Ini adalah hasil pencarian (misalnya dari ytsearch), gunakan daftarnya
+            entries = result.get('entries', [])
+        else:
+            # Ini adalah URL tunggal (misalnya TikTok, Instagram), bungkus dalam daftar
             entries = [result]
 
-        if not entries:
+        if not entries or entries[0] is None:
             await message.reply_text('Tidak ada hasil yang ditemukan atau URL tidak valid!')
             return
 
@@ -494,6 +531,7 @@ async def unduh_video(update: Update, context: CallbackContext):
     status_msg = await query.message.reply_text("⏳ Mengunduh video...")
 
     last_reported_percent = -1
+    loop = asyncio.get_running_loop()
 
     def progress_hook(d):
         nonlocal last_reported_percent
@@ -506,10 +544,8 @@ async def unduh_video(update: Update, context: CallbackContext):
                 # Hanya edit pesan setiap kelipatan 10% untuk menghindari spam
                 if percent // 10 > last_reported_percent // 10:
                     last_reported_percent = percent
-                    loop = asyncio.get_running_loop()
                     loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text(f"⏳ Mengunduh video... {percent}%"))
         elif d['status'] == 'finished':
-             loop = asyncio.get_running_loop()
              loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text("✅ Video selesai diunduh, sedang mengirim..."))
 
     ydl_opts = {
@@ -545,6 +581,7 @@ async def unduh_audio(update: Update, context: CallbackContext):
     status_msg = await query.message.reply_text("⏳ Mengunduh audio...")
 
     last_reported_percent = -1
+    loop = asyncio.get_running_loop()
 
     def progress_hook(d):
         nonlocal last_reported_percent
@@ -555,10 +592,8 @@ async def unduh_audio(update: Update, context: CallbackContext):
                 percent = int((downloaded_bytes / total_bytes) * 100)
                 if percent // 10 > last_reported_percent // 10:
                     last_reported_percent = percent
-                    loop = asyncio.get_running_loop()
                     loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text(f"⏳ Mengunduh audio... {percent}%"))
         elif d['status'] == 'finished':
-            loop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(asyncio.create_task, status_msg.edit_text("✅ Audio selesai diunduh, sedang memproses & mengirim..."))
 
     ydl_opts = {
@@ -596,8 +631,8 @@ def main():
     # Membuat direktori unduhan jika belum ada
     os.makedirs("downloads", exist_ok=True)
 
-    # Tingkatkan batas waktu untuk mengakomodasi tugas AI yang lama
-    application = Application.builder().token(TOKEN).post_init(post_init).read_timeout(300).write_timeout(300).build()
+    # Atur timeout aplikasi lebih tinggi dari timeout API untuk mencegah pembatalan dini
+    application = Application.builder().token(TOKEN).post_init(post_init).read_timeout(90).write_timeout(90).build()
 
     # Conversation Handlers
     unduh_conv = ConversationHandler(
