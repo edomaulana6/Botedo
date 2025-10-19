@@ -253,7 +253,7 @@ def _process_ai_edit_sync(photo_bytes: bytearray, prompt: str) -> bytes:
         "mime_type": "image/jpeg",
         "data": photo_bytes
     }
-    model = genai.GenerativeModel('gemini-1.5-pro-latest')
+    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
 
     # Panggilan API sinkron/blocking dengan timeout
     response = model.generate_content(
