@@ -1,123 +1,123 @@
 # 🤖 Bot Telegram Serbaguna untuk Termux 🤖
 
-Halo! Ini adalah bot Telegram yang dibuat khusus untuk berjalan secara stabil di lingkungan Termux. Bot ini dirancang agar mudah digunakan melalui sistem menu interaktif.
+Selamat datang! Ini adalah bot Telegram multifungsi yang dirancang khusus untuk berjalan dengan stabil dan andal di lingkungan Termux. Bot ini mudah dioperasikan berkat sistem menu interaktif berbasis tombol.
 
-## ✨ Fitur Utama ✨
+## ✨ Fitur Unggulan ✨
 
-Bot ini dilengkapi dengan beberapa fitur utama yang bisa diakses dengan mudah:
-
-*   **Menu Interaktif**: Gunakan perintah `/menu` untuk mengakses semua fitur bot melalui tombol yang mudah dinavigasi.
-*   **Downloader Video & Audio**: Cari video dari YouTube dan unduh dalam format video atau audio.
-*   **Pencarian Gambar**: Cari gambar apa pun dari internet.
-*   **Jadwal Salat**: Dapatkan jadwal salat untuk kota-kota di seluruh Indonesia.
+*   **Sistem Menu Interaktif**: Cukup gunakan perintah `/menu` untuk mengakses semua fitur bot tanpa perlu menghafal banyak perintah.
+*   **Downloader Cerdas**:
+    *   Mendukung pencarian video/audio dari YouTube.
+    *   Mengunduh dari berbagai URL (TikTok, Instagram, Facebook, dll.).
+    *   Menampilkan **progress bar** saat mengunduh.
+    *   Dapat menggunakan `cookies.txt` untuk mengunduh konten yang memerlukan login.
+*   **Editor Gambar AI**: Edit gambar Anda menggunakan model AI generatif dari Google.
+    *   Gunakan perintah preset seperti `/toanime`, `/ootd`, `/pretty`.
+    *   Gunakan prompt kustom Anda sendiri dengan `/edit_ai`.
+*   **Pencarian Multifungsi**:
+    *   `/cari_gambar`: Menemukan dan menampilkan 5 gambar teratas.
+    *   `/google`: Melakukan pencarian Google dan memberikan hasil teratas.
+*   **Fitur Islami**:
+    *   `/jadwal_azan`: Mendapatkan jadwal salat untuk kota-kota di seluruh Indonesia.
 
 ---
 
-## 🛠️ Cara Pemasangan di Termux 🛠️
+## 🛠️ Panduan Instalasi Lengkap di Termux 🛠️
 
-Ikuti langkah-langkah ini satu per satu.
+Ikuti langkah-langkah ini dengan teliti untuk memastikan instalasi berjalan lancar.
 
-**Langkah 1: Persiapan Termux**
-Buka Termux dan jalankan perintah ini untuk memperbarui sistem Anda.
+**Langkah 1: Perbarui Termux**
+Pastikan semua paket di Termux adalah versi terbaru.
 ```bash
 pkg update && pkg upgrade -y
 ```
 
-**Langkah 2: Instal Alat yang Dibutuhkan**
-Bot ini memerlukan `python`, `git`, dan `ffmpeg`.
+**Langkah 2: Instal Dependensi Inti**
+Bot ini memerlukan `python`, `git` untuk mengunduh kode, dan `ffmpeg` untuk memproses audio/video.
 ```bash
 pkg install python git ffmpeg -y
 ```
 
-**Langkah 3: Unduh Kode Bot**
-Ganti `<URL_REPOSITORY>` dengan URL Git yang benar.
+**Langkah 3: Instal Dependensi Build (PENTING!)**
+Beberapa pustaka Python perlu dikompilasi saat instalasi. Perintah ini akan mencegah banyak error saat `pip install`.
 ```bash
-git clone <URL_REPOSITORY> termux_telegram_bot
+pkg install clang rust -y
+```
+
+**Langkah 4: Unduh Kode Bot (Clone Repository)**
+Ganti `<URL_REPOSITORY_ANDA>` dengan URL Git yang benar untuk proyek ini.
+```bash
+git clone <URL_REPOSITORY_ANDA> termux_telegram_bot
 cd termux_telegram_bot
 ```
 > **Penting**: Semua perintah selanjutnya harus dijalankan dari dalam folder `termux_telegram_bot`.
 
-**Langkah 4: Instal Dependensi Python**
+**Langkah 5: Instal Pustaka Python**
+Perintah ini akan menginstal semua pustaka Python yang dibutuhkan oleh bot.
 ```bash
 pip install -r requirements.txt
 ```
 
-**Langkah 5: Atur Token Bot Anda**
-1.  Buat file `.env` dengan menyalin contoh yang ada.
+**Langkah 6: Atur Kunci API Anda**
+1.  Salin file contoh `.env.example` menjadi `.env`. Di sinilah Anda akan menyimpan kunci rahasia Anda.
     ```bash
     cp .env.example .env
     ```
-2.  Buka file tersebut (`nano .env`) dan masukkan token bot Anda yang didapat dari [@BotFather](https://t.me/BotFather).
+2.  Buka file tersebut dengan editor teks, misalnya `nano`.
+    ```bash
+    nano .env
     ```
-    TELEGRAM_TOKEN=ISI_TOKEN_ANDA_DISINI
+3.  Isi token dan kunci API Anda:
+    *   `TELEGRAM_TOKEN`: Dapatkan dari [@BotFather](https://t.me/BotFather) di Telegram.
+    *   `GEMINI_API_KEY`: Dapatkan dari [Google AI Studio](https://aistudio.google.com/) (gratis). Ini wajib jika Anda ingin menggunakan fitur editor gambar AI.
+    ```env
+    TELEGRAM_TOKEN=ISI_TOKEN_TELEGRAM_ANDA_DISINI
+    GEMINI_API_KEY=ISI_KUNCI_GEMINI_ANDA_DISINI
     ```
-3.  Simpan file tersebut.
+4.  Simpan file dengan menekan `CTRL + X`, lalu `Y`, dan `Enter`.
 
 ---
 
 ## 🚀 Cara Menjalankan Bot 🚀
 
 ### Mode Stabil (Direkomendasikan)
-Jalankan bot di latar belakang. Bot akan tetap hidup dan otomatis restart jika terjadi error.
+Gunakan skrip ini untuk menjalankan bot di latar belakang. Bot akan tetap hidup meskipun Anda menutup aplikasi Termux dan akan otomatis dimulai ulang jika terjadi error.
 ```bash
-# Untuk memulai
+# Untuk memulai bot
 ./start.sh
 
-# Untuk menghentikan
+# Untuk menghentikan bot
 ./stop.sh
 ```
 
-### Mode Normal (Untuk Debugging)
-Jalankan bot langsung di terminal Anda. Bot akan berhenti jika Anda menutup Termux.
+### Mode Debugging
+Gunakan skrip ini untuk menjalankan bot di sesi terminal saat ini. Ini berguna untuk melihat log secara langsung, tetapi bot akan mati jika Anda menutup sesi.
 ```bash
 ./run.sh
 ```
 
 ---
 
-## 📖 Cara Menggunakan Bot 📖
+## 💡 Tips & Trik Pengguna 💡
 
-Cukup kirim perintah `/menu` ke bot Anda. Semua fitur dapat diakses dari sana. Bot akan memandu Anda melalui tombol-tombol interaktif.
+### Mengatasi Gagal Unduh (Facebook, Instagram, dll.)
 
-### Editor Gambar AI (Fitur Baru!)
-
-Fitur ini memungkinkan Anda mengedit gambar menggunakan AI.
-
-**Persyaratan:**
-1.  Anda **harus** mendapatkan kunci API dari [Google AI Studio](https://aistudio.google.com/) (gratis).
-2.  Masukkan kunci tersebut ke dalam file `.env` Anda pada baris `GEMINI_API_KEY=...`.
-
-**Cara Menggunakan:**
-Fitur ini sangat mudah digunakan: cukup **balas (reply) sebuah gambar** dengan salah satu perintah AI yang tersedia.
-
-**Contoh Perintah:**
-*   `/edit_ai <instruksi>`: Edit dengan perintah kustom Anda.
-*   `/toanime`: Ubah jadi gaya anime.
-*   `/tofigure`: Ubah jadi action figure.
-*   `/ootd`: Beri gaya OOTD.
-*   ... dan banyak lagi! Lihat daftar lengkap perintah di menu perintah bot.
-
----
-
-## 💡 Tips Tambahan: Mengatasi Gagal Unduh dari Facebook/Instagram 💡
-
-Beberapa situs seperti Facebook, Instagram, dan lainnya memerlukan Anda untuk login agar bisa mengunduh konten. Agar bot bisa melakukannya, Anda perlu memberikannya "kunci masuk" berupa file cookies.
+Beberapa situs web mengharuskan Anda login untuk melihat atau mengunduh konten. Agar bot dapat melakukannya, Anda perlu memberinya file "cookies".
 
 **Cara Mendapatkan `cookies.txt` (Hanya perlu dilakukan sekali):**
 
-1.  **Gunakan Browser di Komputer (Chrome/Firefox).**
-2.  Instal ekstensi browser bernama **"Get cookies.txt"**. Ekstensi ini aman dan banyak digunakan.
-3.  Buka situs yang Anda inginkan (misalnya, `facebook.com`) dan **login** ke akun Anda.
-4.  Klik ikon ekstensi "Get cookies.txt" (biasanya ikon kue), lalu klik **"Export"**. Ini akan mengunduh file bernama `cookies.txt`.
+1.  **Gunakan Browser di PC/Laptop (Chrome/Firefox).**
+2.  Instal ekstensi browser bernama **"Get cookies.txt"** (aman dan populer).
+3.  Buka situs web yang diinginkan (misal, `facebook.com`) dan **login** ke akun Anda.
+4.  Klik ikon ekstensi "Get cookies.txt" dan pilih **"Export"**. Sebuah file bernama `cookies.txt` akan terunduh.
 
 **Cara Menggunakan `cookies.txt` di Termux:**
 
-1.  Pindahkan file `cookies.txt` yang baru Anda unduh dari komputer ke penyimpanan internal ponsel Anda (misalnya ke folder "Download").
-2.  Buka Termux dan jalankan perintah ini untuk menyalin file cookies ke direktori bot Anda:
+1.  Pindahkan file `cookies.txt` yang baru Anda unduh ke folder "Download" di penyimpanan internal ponsel Anda.
+2.  Buka Termux dan salin file tersebut ke direktori bot:
     ```bash
     cp /sdcard/Download/cookies.txt ~/termux_telegram_bot/cookies.txt
     ```
-    *(Catatan: Ganti `/sdcard/Download/` jika Anda menyimpannya di lokasi lain).*
-3.  Restart bot Anda (`./stop.sh` lalu `./start.sh`).
+    *(Catatan: Sesuaikan path `/sdcard/Download/` jika Anda menyimpannya di tempat lain).*
+3.  Restart bot Anda (`./stop.sh` lalu `./start.sh`) agar bot memuat cookies baru.
 
-Sekarang, bot akan secara otomatis menggunakan cookies tersebut setiap kali mengunduh, memungkinkannya mengakses konten yang memerlukan login. Jika unduhan masih gagal, coba ekspor ulang file `cookies.txt` Anda karena mungkin sudah kedaluwarsa.
+Sekarang bot akan secara otomatis menggunakan cookies ini untuk mengunduh, memungkinkannya mengakses konten yang dilindungi login. Jika unduhan kembali gagal di masa mendatang, cukup ulangi langkah-langkah ini untuk mendapatkan cookies yang baru.
