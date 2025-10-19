@@ -243,76 +243,49 @@ if GEMINI_API_KEY:
 
 # --- Fitur AI Image Editor (dengan ConversationHandler) ---
 
-def _process_ai_edit_sync(photo_bytes: bytearray, prompt: str) -> bytes:
-    """
-    Fungsi SINKRON yang memproses gambar dengan AI.
-    Fungsi ini sengaja dibuat blocking dan harus dijalankan di thread terpisah.
-    Ini akan melempar exception jika gagal, yang akan ditangkap oleh pembungkus async.
-    """
-    image_part = {
-        "mime_type": "image/jpeg",
-        "data": photo_bytes
-    }
-    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
-
-    # Panggilan API sinkron/blocking dengan timeout
-    response = model.generate_content(
-        [prompt, image_part],
-        request_options={"timeout": 60}
-    )
-
-    if not response.parts:
-        raise ValueError("Respons AI tidak berisi data gambar, mungkin karena konten tidak pantas atau error lain.")
-
-    return response.parts[0].inline_data.data
-
-async def _process_ai_edit(message, photo_file, prompt: str, context: CallbackContext):
-    """
-    Fungsi ASINKRON yang menjadi pembungkus untuk pemrosesan AI.
-    Ini menangani I/O asinkron dan menjalankan pemrosesan AI yang sinkron di thread lain.
-    """
-    status_msg = await message.reply_text("🎨 Sedang memproses gambar dengan AI, ini mungkin memakan waktu...")
-    try:
-        # 1. Lakukan I/O asinkron untuk mendapatkan bytes gambar
-        photo_bytes = await photo_file.download_as_bytearray()
-
-        # 2. Jalankan fungsi sinkron yang memblokir di thread terpisah
-        image_data = await asyncio.to_thread(
-            _process_ai_edit_sync, photo_bytes, prompt
-        )
-
-        # 3. Kirim hasilnya secara asinkron
-        await context.bot.send_photo(
-            chat_id=message.chat_id,
-            photo=image_data,
-            caption=f"Berikut adalah hasil edit dengan prompt: \"{prompt}\""
-        )
-        await status_msg.delete()
-
-    # 4. Tangkap exception spesifik yang dilempar dari thread
-    except exceptions.ResourceExhausted as e:
-        logging.error(f"Quota error saat mengedit gambar dengan AI: {e}")
-        await status_msg.edit_text("Maaf, kuota penggunaan AI gratis untuk hari ini telah habis. Silakan coba lagi besok.")
-    except exceptions.DeadlineExceeded as e:
-        logging.error(f"Timeout error saat mengedit gambar dengan AI: {e}")
-        await status_msg.edit_text("Maaf, permintaan ke AI memakan waktu terlalu lama (timed out). Silakan coba lagi nanti.")
-    except ValueError as e:
-        logging.error(f"Value error (respons tidak valid) saat mengedit gambar dengan AI: {e}")
-        await status_msg.edit_text(f"Gagal memproses respons dari AI: {e}")
-    except Exception as e:
-        logging.error(f"Error tak terduga saat mengedit gambar dengan AI: {e}")
-        await status_msg.edit_text("Terjadi kesalahan tak terduga saat memproses gambar Anda.")
-
 async def _ai_command_entry_point(update: Update, context: CallbackContext, prompt: str, ask_message: str) -> int:
     """Titik masuk untuk semua perintah AI, menentukan alur percakapan."""
     if not GEMINI_API_KEY:
         await update.message.reply_text("Fitur AI tidak aktif. Kunci API Gemini belum diatur.")
         return ConversationHandler.END
 
+    # Kasus 1: Perintah dikirim sebagai balasan ke sebuah gambar
     if update.message.reply_to_message and update.message.reply_to_message.photo:
-        photo_file = await update.message.reply_to_message.photo[-1].get_file()
-        await _process_ai_edit(update.message.reply_to_message, photo_file, prompt, context)
+        message_to_reply = update.message.reply_to_message
+        status_msg = await message_to_reply.reply_text("🎨 Sedang memproses gambar dengan AI, ini mungkin memakan waktu...")
+        try:
+            photo_file = await message_to_reply.photo[-1].get_file()
+            photo_bytes = await photo_file.download_as_bytearray()
+            image_part = {"mime_type": "image/jpeg", "data": photo_bytes}
+            model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
+            response = await model.generate_content_async([prompt, image_part], request_options={"timeout": 60})
+
+            if not response.parts:
+                raise ValueError("Respons AI tidak berisi data gambar.")
+
+            await context.bot.send_photo(
+                chat_id=message_to_reply.chat_id,
+                photo=response.parts[0].inline_data.data,
+                caption=f"Hasil edit untuk: \"{prompt}\"",
+                reply_to_message_id=message_to_reply.message_id
+            )
+            await status_msg.delete()
+        except ValueError as e:
+            logging.error(f"ValueError di _ai_command_entry_point: {e}")
+            await status_msg.edit_text("Gagal memproses: AI menolak gambar ini, kemungkinan karena alasan keamanan.")
+        except exceptions.ResourceExhausted as e:
+            logging.error(f"Quota error saat mengedit gambar dengan AI: {e}")
+            await status_msg.edit_text("Maaf, kuota penggunaan AI gratis untuk hari ini telah habis. Silakan coba lagi besok.")
+        except exceptions.DeadlineExceeded as e:
+            logging.error(f"Timeout error saat mengedit gambar dengan AI: {e}")
+            await status_msg.edit_text("Maaf, permintaan ke AI memakan waktu terlalu lama (timed out). Silakan coba lagi nanti.")
+        except Exception as e:
+            logging.error(f"Error di _ai_command_entry_point: {e}")
+            await status_msg.edit_text("Terjadi kesalahan tak terduga saat memproses gambar Anda.")
+
         return ConversationHandler.END
+
+    # Kasus 2: Perintah dikirim tanpa gambar, bot akan meminta gambar
     else:
         context.user_data['ai_prompt'] = prompt
         await update.message.reply_text(ask_message)
@@ -320,9 +293,39 @@ async def _ai_command_entry_point(update: Update, context: CallbackContext, prom
 
 async def get_ai_image(update: Update, context: CallbackContext) -> int:
     """Menangani gambar yang dikirim setelah diminta oleh bot."""
-    prompt = context.user_data.pop('ai_prompt', 'Tidak ada prompt yang diberikan.')
-    photo_file = await update.message.photo[-1].get_file()
-    await _process_ai_edit(update.message, photo_file, prompt, context)
+    prompt = context.user_data.pop('ai_prompt', 'Gagal mendapatkan prompt.')
+    status_msg = await update.message.reply_text("🎨 Sedang memproses gambar Anda dengan AI...")
+
+    try:
+        photo_file = await update.message.photo[-1].get_file()
+        photo_bytes = await photo_file.download_as_bytearray()
+        image_part = {"mime_type": "image/jpeg", "data": photo_bytes}
+        model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
+        response = await model.generate_content_async([prompt, image_part], request_options={"timeout": 60})
+
+        if not response.parts:
+            raise ValueError("Respons AI tidak berisi data gambar.")
+
+        await context.bot.send_photo(
+            chat_id=update.effective_chat.id,
+            photo=response.parts[0].inline_data.data,
+            caption=f"Hasil edit untuk: \"{prompt}\"",
+            reply_to_message_id=update.message.message_id
+        )
+        await status_msg.delete()
+    except ValueError as e:
+        logging.error(f"ValueError di get_ai_image: {e}")
+        await status_msg.edit_text("Gagal memproses: AI menolak gambar ini, kemungkinan karena alasan keamanan.")
+    except exceptions.ResourceExhausted as e:
+        logging.error(f"Quota error saat mengedit gambar dengan AI: {e}")
+        await status_msg.edit_text("Maaf, kuota penggunaan AI gratis untuk hari ini telah habis. Silakan coba lagi besok.")
+    except exceptions.DeadlineExceeded as e:
+        logging.error(f"Timeout error saat mengedit gambar dengan AI: {e}")
+        await status_msg.edit_text("Maaf, permintaan ke AI memakan waktu terlalu lama (timed out). Silakan coba lagi nanti.")
+    except Exception as e:
+        logging.error(f"Error di get_ai_image: {e}")
+        await status_msg.edit_text("Terjadi kesalahan tak terduga saat memproses gambar Anda.")
+
     return ConversationHandler.END
 
 async def cancel_ai(update: Update, context: CallbackContext) -> int:
