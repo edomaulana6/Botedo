@@ -1,22 +1,20 @@
 # 🤖 Bot Telegram Serbaguna untuk Termux 🤖
 
-Selamat datang! Ini adalah panduan super-mudah untuk memasang bot Telegram di aplikasi Termux Anda. Setiap langkah dijelaskan dengan detail agar tidak ada lagi error.
+Selamat datang! Ini adalah panduan super-mudah untuk memasang bot Telegram di aplikasi Termux Anda. Struktur proyek ini sudah disederhanakan agar tidak ada lagi kebingungan.
 
 ---
 
-## 🛠️ Panduan Instalasi (Dijamin Mudah) 🛠️
+## 🛠️ Panduan Instalasi (Final & Paling Mudah) 🛠️
 
 Ikuti setiap langkah dengan teliti. Cukup salin (`copy-paste`) setiap perintah ke dalam Termux Anda lalu tekan `Enter`.
 
 ### Langkah 1: Persiapan Awal Termux
-
 Pastikan Termux Anda dalam kondisi terbaru.
 ```bash
 pkg update && pkg upgrade -y
 ```
 
 ### Langkah 2: Instal Program-program Penting
-
 Bot ini butuh beberapa "alat" untuk bekerja. Perintah di bawah ini akan menginstal semuanya sekaligus.
 *   `git`: Untuk mengunduh kode bot.
 *   `python`: Bahasa yang digunakan bot.
@@ -27,61 +25,55 @@ Bot ini butuh beberapa "alat" untuk bekerja. Perintah di bawah ini akan menginst
 pkg install git python ffmpeg rust clang -y
 ```
 
-### Langkah 3: Unduh Kode Bot & Masuk ke Folder-nya
-
-Perintah ini akan mengunduh kode bot dari GitHub, lalu **langsung memindahkan Anda ke dalam folder yang benar**.
-
+### Langkah 3: Unduh Kode Bot
+Perintah ini akan mengunduh semua file bot ke dalam sebuah folder baru bernama `termux_bot`.
 ```bash
-git clone https://github.com/user/repo.git termux_telegram_bot && cd termux_telegram_bot
+git clone https://github.com/user/repo.git termux_bot
 ```
-**Penting:**
-*   Ganti `https://github.com/user/repo.git` dengan URL Git repositori ini.
-*   Pastikan perintah di atas berhasil. Setelah selesai, Anda seharusnya sudah berada di dalam folder `termux_telegram_bot`.
+**Penting:** Ganti `https://github.com/user/repo.git` dengan URL Git repositori ini.
 
-### Langkah 4: Instal Komponen Inti Bot
+### Langkah 4: Masuk ke Folder Bot
+Setelah selesai mengunduh, Anda **wajib** masuk ke folder tersebut.
+```bash
+cd termux_bot
+```
+> **Catatan**: Semua perintah selanjutnya harus dijalankan dari dalam folder ini.
 
+### Langkah 5: Instal Komponen Inti Bot
 Sekarang kita sudah berada di folder yang benar, saatnya menginstal semua pustaka Python yang dibutuhkan bot.
-
 ```bash
 pip install -r requirements.txt
 ```
 Proses ini mungkin akan memakan waktu beberapa menit. Harap bersabar.
 
-### Langkah 5: Buat dan Isi File Konfigurasi
+### Langkah 6: Buat dan Isi File Konfigurasi
+Ini adalah langkah terakhir. Kita akan membuat file `.env` untuk menyimpan token rahasia bot Anda.
 
-Ini adalah langkah paling penting. Kita akan membuat file `.env` untuk menyimpan token rahasia bot Anda.
-
-1.  **Pastikan Anda Berada di Folder yang Benar.** Jalankan perintah ini:
-    ```bash
-    pwd
-    ```
-    Pastikan outputnya diakhiri dengan `/termux_telegram_bot`. Jika tidak, ulangi langkah 3.
-
-2.  **Sekarang, salin file contoh.** Karena kita sudah berada di folder yang benar, perintah ini **pasti berhasil**.
+1.  **Salin file contoh.** Karena kita sudah berada di folder yang benar, perintah ini **pasti berhasil**.
     ```bash
     cp .env.example .env
     ```
 
-3.  **Buka file tersebut dengan editor `nano`.**
+2.  **Buka file tersebut dengan editor `nano`.**
     ```bash
     nano .env
     ```
 
-4.  Anda akan melihat teks ini:
+3.  Anda akan melihat teks ini:
     ```env
     TELEGRAM_TOKEN=ISI_TOKEN_TELEGRAM_ANDA_DISINI
     GEMINI_API_KEY=ISI_KUNCI_GEMINI_ANDA_DISINI
     ```
 
-5.  Ganti `ISI_TOKEN_TELEGRAM_ANDA_DISINI` dengan token bot Anda (dapatkan dari [@BotFather](https://t.me/BotFather)).
-6.  Jika ingin pakai fitur AI, ganti juga `ISI_KUNCI_GEMINI_ANDA_DISINI` dengan kunci API Anda dari [Google AI Studio](https://aistudio.google.com/).
+4.  Ganti `ISI_TOKEN_TELEGRAM_ANDA_DISINI` dengan token bot Anda (dapatkan dari [@BotFather](https://t.me/BotFather)).
+5.  Jika ingin pakai fitur AI, ganti juga `ISI_KUNCI_GEMINI_ANDA_DISINI` dengan kunci API Anda dari [Google AI Studio](https://aistudio.google.com/).
 
-7.  **Cara Menyimpan & Keluar dari `nano`:**
+6.  **Cara Menyimpan & Keluar dari `nano`:**
     *   Tekan `CTRL` + `X`
     *   Tekan `Y` (artinya Yes)
     *   Tekan `Enter`
 
-Instalasi Selesai!
+**Pemasangan Selesai!**
 
 ---
 
