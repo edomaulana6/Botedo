@@ -1,108 +1,122 @@
 # 🤖 Bot Telegram Serbaguna untuk Termux 🤖
 
-Halo! Ini adalah bot Telegram yang dibuat khusus untuk jalan di Termux. Bot ini bisa membantumu download macem-macem hal, mulai dari lagu sampai gambar.
-
-## ✨ Fitur Keren Bot Ini ✨
-
-*   **Unduh Apa Aja dari URL**: Tinggal kasih link (misalnya dari YouTube, Instagram, dll), nanti bot tanya mau dijadiin video atau audio.
-*   **Cari Lagu di YouTube**:
-    *   **Pencarian Biasa**: Cari judul lagu, nanti bot kasih 5 hasil terbaik. Lengkap dengan gambar thumbnail dan tombol buat milih video atau audio.
-    *   **Cari Cepat**: Pakai perintah `/caricepat`, ketik judul lagu, dan bot bakal langsung kirim file audionya.
-*   **Cari Gambar di Web**: Pakai perintah `/cari_gambar`, kamu bisa cari gambar apa aja dari internet.
+Selamat datang! Ini adalah panduan untuk memasang bot Telegram multifungsi di aplikasi Termux Anda. Bot ini dirancang agar mudah dipasang dan digunakan, bahkan untuk pemula.
 
 ---
 
-## 🛠️ Cara Pasang di Termux (Gampang Kok!) 🛠️
+## 🛠️ Panduan Instalasi (Langkah demi Langkah) 🛠️
 
-Ikuti langkah-langkah ini satu per satu ya.
+Ikuti setiap langkah dengan teliti. Cukup salin (`copy-paste`) setiap perintah ke dalam Termux Anda lalu tekan `Enter`.
 
-**Langkah 1: Siapin Termux kamu**
+### Langkah 1: Siapkan Termux Anda
 
-Buka Termux, terus ketik perintah ini buat update sistemnya.
+Pertama, kita perlu memastikan Termux dan semua paketnya sudah diperbarui.
+
 ```bash
-pkg update && pkg upgrade
+pkg update && pkg upgrade -y
 ```
 
-**Langkah 2: Install Alat-alat yang Dibutuhin**
+### Langkah 2: Instal Alat-alat yang Diperlukan
 
-Bot ini butuh beberapa alat biar bisa jalan. Ketik perintah ini:
+Bot ini membutuhkan beberapa program dasar agar bisa berjalan. Perintah ini akan menginstalnya untuk Anda.
+
+*   `git`: Untuk mengunduh kode bot dari GitHub.
+*   `python`: Bahasa pemrograman yang digunakan bot ini.
+*   `ffmpeg`: Untuk memproses file video dan audio.
+*   `rust` & `clang`: Diperlukan untuk menginstal beberapa komponen penting dari pustaka Python.
+
 ```bash
-pkg install python git ffmpeg
+pkg install git python ffmpeg rust clang -y
 ```
-*   `python` itu buat ngejalanin botnya.
-*   `git` untuk mengunduh file bot dari repositori.
-*   `ffmpeg` penting untuk memproses video dan audio.
 
-**Langkah 3: Unduh Bot dan Masuk ke Direktori**
+### Langkah 3: Unduh Kode Bot
 
-1.  Unduh file bot menggunakan `git`. Ganti `<URL_REPOSITORY>` dengan URL yang benar.
-    ```bash
-    git clone <URL_REPOSITORY>
-    ```
-2.  Sekarang, masuk ke dalam folder utama bot. **Ini langkah penting!**
-    ```bash
-    cd termux_telegram_bot
-    ```
-> Semua perintah selanjutnya harus dijalankan dari dalam folder `termux_telegram_bot` ini.
+Sekarang, kita akan mengunduh kode bot dari repositori ini ke dalam Termux.
 
-**Langkah 4: Install Dependensi Python**
+```bash
+git clone https://github.com/user/repo.git termux_telegram_bot
+```
+**Penting:** Ganti `https://github.com/user/repo.git` dengan URL repositori yang benar.
 
-Jalankan perintah ini untuk menginstal semua "bumbu dapur" yang dibutuhkan oleh bot.
+Setelah selesai, masuk ke direktori yang baru saja dibuat:
+```bash
+cd termux_telegram_bot
+```
+> **Catatan**: Semua perintah selanjutnya **harus** dijalankan dari dalam folder `termux_telegram_bot` ini.
+
+### Langkah 4: Instal Komponen Bot
+
+Perintah ini akan menginstal semua pustaka Python yang dibutuhkan oleh bot. Proses ini mungkin memakan waktu beberapa menit.
+
 ```bash
 pip install -r requirements.txt
 ```
 
-**Langkah 5: Masukkan Token Rahasia Bot Kamu**
+### Langkah 5: Atur Kunci Rahasia (Token) Bot Anda
 
-1.  Buka file `.env` menggunakan editor teks `nano`.
+Bot perlu "kunci" untuk bisa terhubung ke akun bot Telegram Anda.
+
+1.  **Salin file contoh konfigurasi.** Perintah ini akan membuat file `.env` yang akan kita isi.
+    ```bash
+    cp .env.example .env
+    ```
+
+2.  **Isi Token Anda.** Sekarang, buka file `.env` tersebut dengan editor `nano`.
     ```bash
     nano .env
     ```
-2.  Di dalamnya, Anda akan melihat baris `TELEGRAM_TOKEN="ISI_TOKEN_ANDA_DISINI"`. Ganti `ISI_TOKEN_ANDA_DISINI` dengan token bot Anda yang didapat dari [@BotFather](https://t.me/BotFather).
-3.  Simpan file dengan menekan `Ctrl` + `X`, lalu `Y`, lalu `Enter`.
+
+3.  Anda akan melihat teks berikut di layar:
+    ```env
+    TELEGRAM_TOKEN=ISI_TOKEN_TELEGRAM_ANDA_DISINI
+    GEMINI_API_KEY=ISI_KUNCI_GEMINI_ANDA_DISINI
+    ```
+
+4.  Ganti `ISI_TOKEN_TELEGRAM_ANDA_DISINI` dengan token bot Anda yang didapat dari [@BotFather](https://t.me/BotFather).
+5.  Jika Anda ingin menggunakan fitur AI, ganti juga `ISI_KUNCI_GEMINI_ANDA_DISINI` dengan kunci API Anda dari [Google AI Studio](https://aistudio.google.com/). Jika tidak, Anda bisa membiarkannya kosong.
+
+6.  Untuk **menyimpan dan keluar** dari editor nano:
+    *   Tekan `CTRL` + `X`
+    *   Tekan `Y` (untuk Yes)
+    *   Tekan `Enter`
 
 ---
 
 ## 🚀 Cara Menjalankan Bot 🚀
 
-Kalau semua langkah di atas udah beres, sekarang tinggal nyalain botnya!
+Anda punya dua cara untuk menjalankan bot:
 
-### Cara 1: Dijalankan di Latar Belakang (Direkomendasikan)
+### Mode Stabil (Direkomendasikan)
 
-Ini cara terbaik biar bot tetap hidup meskipun aplikasi Termux kamu tertutup.
+Gunakan skrip ini untuk menjalankan bot di latar belakang. Bot akan tetap hidup meskipun aplikasi Termux Anda ditutup.
 
-1.  Pastikan kamu ada di dalam folder `termux_telegram_bot`.
-2.  Jalankan skrip `start.sh`:
+*   **Untuk memulai bot:**
     ```bash
     ./start.sh
     ```
-    Bot akan mulai berjalan di latar belakang.
-
-**Untuk menghentikan bot:**
-Jalankan skrip `stop.sh`:
-```bash
-./stop.sh
-```
-
-### Cara 2: Dijalankan Langsung (Untuk Cek Error/Debugging)
-
-Cara ini cocok kalau kamu mau lihat log atau pesan error secara langsung di layar.
-
-1.  Pastikan kamu ada di dalam folder `termux_telegram_bot`.
-2.  Jalankan perintah ini:
+*   **Untuk menghentikan bot:**
     ```bash
-    python bot.py
+    ./stop.sh
     ```
-Bot akan berjalan di sesi terminalmu. Untuk mematikannya, cukup tekan `Ctrl` + `C`.
 
-Selamat mencoba!
+### Mode Debug (Untuk Cek Error)
+
+Jika bot mengalami masalah, gunakan mode ini. Semua aktivitas dan error akan ditampilkan langsung di layar. Bot akan berhenti jika Anda menutup sesi Termux.
+
+*   **Untuk memulai mode debug:**
+    ```bash
+    ./run.sh
+    ```
 
 ---
 
-## 💡 Tips Tambahan: Kalau Gagal Download 💡
+## ✨ Fitur Bot ✨
 
-Terkadang, situs seperti YouTube mengubah cara kerja mereka. Jika bot gagal download, coba update `yt-dlp` dengan perintah ini:
-```bash
-pip install --upgrade yt-dlp
-```
-Lalu, restart botnya.
+Setelah bot berjalan, Anda bisa mulai dengan mengirim perintah `/menu` untuk melihat semua fitur yang tersedia dalam bentuk tombol interaktif.
+
+*   **Downloader Cerdas**: Unduh video/audio dari YouTube, TikTok, Instagram, dll.
+*   **Editor Gambar AI**: Edit gambar dengan perintah seperti `/toanime`, `/ootd`, atau gunakan prompt kustom Anda.
+*   **Pencarian**: Cari gambar dengan `/cari_gambar` atau informasi di Google dengan `/google`.
+*   **Fitur Islami**: Dapatkan jadwal salat dengan `/jadwal_azan`.
+
+Jika Anda menemukan masalah, jangan ragu untuk melaporkannya!

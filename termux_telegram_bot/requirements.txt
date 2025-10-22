@@ -2,3 +2,7 @@ python-telegram-bot
 python-dotenv
 yt-dlp @ git+https://github.com/yt-dlp/yt-dlp.git
 duckduckgo_images_api
+requests
+googlesearch-python
+google-generativeai>=0.4.0
+Pillow
