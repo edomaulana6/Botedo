@@ -58,22 +58,41 @@ pip install -r requirements.txt
 ```
 
 **Langkah 6: Atur Kunci API Anda**
-1.  Salin file contoh `.env.example` menjadi `.env`. Di sinilah Anda akan menyimpan kunci rahasia Anda.
+
+1.  **Salin File Konfigurasi**
+    Perintah ini akan membuat file `.env` dari contoh yang ada. File ini bersifat rahasia dan tidak boleh dibagikan.
     ```bash
     cp .env.example .env
     ```
-2.  Buka file tersebut dengan editor teks, misalnya `nano`.
+
+2.  **Buka File `.env`**
+    Gunakan editor teks `nano` untuk mengedit file tersebut.
     ```bash
     nano .env
     ```
-3.  Isi token dan kunci API Anda:
-    *   `TELEGRAM_TOKEN`: Dapatkan dari [@BotFather](https://t.me/BotFather) di Telegram.
-    *   `GEMINI_API_KEY`: Dapatkan dari [Google AI Studio](https://aistudio.google.com/) (gratis). Ini wajib jika Anda ingin menggunakan fitur editor gambar AI.
-    ```env
-    TELEGRAM_TOKEN=ISI_TOKEN_TELEGRAM_ANDA_DISINI
-    GEMINI_API_KEY=ISI_KUNCI_GEMINI_ANDA_DISINI
+    > *Catatan: Jika perintah `nano` gagal, berarti editor belum terinstal. Instal dengan `pkg install nano -y`, lalu ulangi perintah di atas.*
+
+3.  **Isi Kunci API Anda**
+    Anda akan melihat konten berikut di dalam file:
+    ```ini
+    # .env (SEBELUM DIEDIT)
+    TELEGRAM_TOKEN="ISI_TOKEN_ANDA_DISINI"
+    GEMINI_API_KEY="ISI_KUNCI_API_GEMINI_ANDA_DISINI"
     ```
-4.  Simpan file dengan menekan `CTRL + X`, lalu `Y`, dan `Enter`.
+
+    Ganti `ISI_..._DISINI` dengan kunci asli yang Anda dapatkan. Pastikan token Anda berada **di dalam tanda kutip (`"`)**.
+
+    **Contoh hasil akhir yang benar:**
+    ```ini
+    # .env (SESUDAH DIEDIT)
+    TELEGRAM_TOKEN="123456:ABC-DEF1234567"
+    GEMINI_API_KEY="AIzaSyA...Zb-12345_ABCDE"
+    ```
+    *   `TELEGRAM_TOKEN`: Dapatkan dari [@BotFather](https://t.me/BotFather) di Telegram.
+    *   `GEMINI_API_KEY`: Dapatkan dari [Google AI Studio](https://aistudio.google.com/) (gratis). Wajib diisi jika ingin menggunakan fitur AI.
+
+4.  **Simpan dan Keluar**
+    Tekan `CTRL + X`, ketik `Y` untuk konfirmasi, lalu tekan `Enter`.
 
 ---
 
