@@ -43,13 +43,21 @@ Beberapa pustaka Python perlu dikompilasi saat instalasi. Perintah ini akan menc
 pkg install clang rust -y
 ```
 
-**Langkah 4: Unduh Kode Bot (Clone Repository)**
-Ganti `<URL_REPOSITORY_ANDA>` dengan URL Git yang benar untuk proyek ini.
-```bash
-git clone <URL_REPOSITORY_ANDA> termux_telegram_bot
-cd termux_telegram_bot
-```
-> **Penting**: Semua perintah selanjutnya harus dijalankan dari dalam folder `termux_telegram_bot`.
+**Langkah 4: Unduh Kode Bot & Masuk ke Direktori**
+
+1.  **Unduh Kode (Clone)**
+    Perintah ini akan mengunduh kode bot ke dalam sebuah folder baru bernama `termux_telegram_bot`. Ganti `<URL_REPOSITORY_ANDA>` dengan URL Git proyek ini.
+    ```bash
+    git clone <URL_REPOSITORY_ANDA> termux_telegram_bot
+    ```
+
+2.  **Masuk ke Folder Bot (Sangat Penting!)**
+    Setelah selesai, Anda **wajib** pindah ke dalam folder tersebut.
+    ```bash
+    cd termux_telegram_bot
+    ```
+    > **PEMBERITAHUAN PENTING:**
+    > Semua perintah selanjutnya (`pip install`, `cp .env.example`, `./run.sh`, dll.) **harus** dijalankan dari dalam folder `termux_telegram_bot`. Jika tidak, Anda akan mendapatkan error `No such file or directory`.
 
 **Langkah 5: Instal Pustaka Python**
 Perintah ini akan menginstal semua pustaka Python yang dibutuhkan oleh bot.
