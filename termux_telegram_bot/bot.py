@@ -9,6 +9,7 @@ import requests
 from dotenv import load_dotenv
 from duckduckgo_images_api import search as ddg_search
 from googlesearch import search
+from pterodactyl_manager import install_pterodactyl # Impor fungsi baru
 
 # Muat variabel dari file .env
 load_dotenv()
@@ -43,6 +44,7 @@ async def main_menu(update: Update, context: CallbackContext):
         [InlineKeyboardButton("🖼️ Pencarian", callback_data='menu_search')],
         [InlineKeyboardButton("🎨 Editor Gambar AI", callback_data='menu_ai_editor')],
         [InlineKeyboardButton("🕌 Islami", callback_data='menu_islamic')],
+        [InlineKeyboardButton("⚙️ Panel Pterodactyl", callback_data='menu_pterodactyl')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     text = "👋 Halo! Silakan pilih kategori dari menu di bawah ini:"
@@ -106,6 +108,8 @@ async def button_callback_handler(update: Update, context: CallbackContext) -> N
         await islamic_menu(update, context)
     elif query.data == 'main_menu_back':
         await main_menu(update, context)
+    elif query.data == 'menu_pterodactyl':
+        await pterodactyl_menu(update, context)
     elif query.data == 'start_video':
         await start_unduh_from_menu(update, context)
     elif query.data == 'start_gambar':
@@ -134,9 +138,50 @@ async def ai_editor_menu(update: Update, context: CallbackContext) -> None:
     await query.edit_message_text(text=text, reply_markup=reply_markup)
 
 # States untuk ConversationHandlers
-GET_UNDUH_QUERY, GET_GAMBAR_QUERY, GET_GOOGLE_QUERY, GET_AZAN_QUERY, GET_AI_IMAGE = range(5)
+(
+    GET_UNDUH_QUERY, GET_GAMBAR_QUERY, GET_GOOGLE_QUERY, GET_AZAN_QUERY, GET_AI_IMAGE,
+    PTERO_GET_IP, PTERO_GET_USER, PTERO_GET_PASS,
+    PTERO_GET_FQDN, PTERO_GET_EMAIL,
+    PTERO_GET_ADMIN_USER, PTERO_GET_ADMIN_PASS,
+    PTERO_GET_ADMIN_FNAME, PTERO_GET_ADMIN_LNAME,
+    PTERO_GET_SSL,
+    PTERO_ASK_WINGS, PTERO_GET_WINGS_CPU, PTERO_GET_WINGS_RAM,
+    PTERO_CONFIRM
+) = range(19)
+
+
+async def pterodactyl_menu(update: Update, context: CallbackContext) -> None:
+    """Menampilkan menu untuk fitur Pterodactyl."""
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [InlineKeyboardButton("🚀 Mulai Instalasi Panel", callback_data='ptero_start_install')],
+        [InlineKeyboardButton("Kembali", callback_data='main_menu_back')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = (
+        "Anda berada di menu Panel Pterodactyl.\n\n"
+        "Fitur ini akan memandu Anda untuk menginstal Panel Pterodactyl di VPS Anda secara otomatis."
+    )
+    await query.edit_message_text(text=text, reply_markup=reply_markup)
 
 # --- Fungsi Pemula untuk ConversationHandler dari Menu ---
+async def start_pterodactyl_install(update: Update, context: CallbackContext) -> int:
+    """Memulai alur instalasi Pterodactyl dari menu dengan peringatan keamanan yang ditingkatkan."""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "**⚠️ PERINGATAN KEAMANAN PENTING ⚠️**\n\n"
+        "Anda akan memasukkan kredensial VPS (IP, user, pass). Informasi ini **tidak disimpan** oleh bot.\n\n"
+        "Harap perhatikan risiko berikut:\n"
+        "1. **Skrip Pihak Ketiga:** Bot ini menggunakan skrip dari `pterodactyl-installer.se` yang akan dijalankan dengan hak akses root di VPS Anda.\n"
+        "2. **Koneksi SSH:** Verifikasi kunci host SSH dinonaktifkan (`AutoAddPolicy`), yang secara teoritis rentan terhadap serangan Man-in-the-Middle (MITM).\n\n"
+        "Lanjutkan hanya jika Anda memahami dan menerima risiko ini. Kirim /batal kapan saja untuk berhenti.\n\n"
+        "Silakan masukkan **Alamat IP** VPS Anda:",
+        parse_mode='Markdown'
+    )
+    return PTERO_GET_IP
+
 async def start_unduh_from_menu(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     await query.edit_message_text("Silakan kirimkan URL atau judul untuk diunduh:")
@@ -630,6 +675,215 @@ async def unduh_audio(update: Update, context: CallbackContext):
         logging.error(f"Error saat mengunduh audio: {error_message}")
         await status_msg.edit_text(f"Gagal mengunduh audio.\n\nError: `{error_message}`", parse_mode='Markdown')
 
+# --- Pterodactyl Installation Conversation ---
+
+async def ptero_get_ip(update: Update, context: CallbackContext) -> int:
+    """Menyimpan IP VPS dan meminta username."""
+    context.user_data['ptero_ip'] = update.message.text
+    await update.message.reply_text("IP berhasil disimpan. Sekarang, masukkan **username** VPS Anda (biasanya 'root'):", parse_mode='Markdown')
+    return PTERO_GET_USER
+
+async def ptero_get_user(update: Update, context: CallbackContext) -> int:
+    """Menyimpan username dan meminta password."""
+    context.user_data['ptero_user'] = update.message.text
+    await update.message.reply_text("Username berhasil disimpan. Sekarang, masukkan **password** VPS Anda:", parse_mode='Markdown')
+    return PTERO_GET_PASS
+
+async def ptero_get_pass(update: Update, context: CallbackContext) -> int:
+    """Menyimpan password, menghapus pesan, dan meminta FQDN."""
+    context.user_data['ptero_pass'] = update.message.text
+
+    # Hapus pesan yang berisi password
+    await update.message.delete()
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Password VPS berhasil disimpan dan pesan asli telah dihapus demi keamanan.\n\n"
+             "Sekarang, masukkan **Domain (FQDN)** yang akan Anda gunakan untuk panel (contoh: `panel.domain.com`):",
+        parse_mode='Markdown'
+    )
+    return PTERO_GET_FQDN
+
+async def ptero_get_fqdn(update: Update, context: CallbackContext) -> int:
+    """Menyimpan FQDN dan meminta email."""
+    context.user_data['ptero_fqdn'] = update.message.text
+    await update.message.reply_text("Domain berhasil disimpan. Sekarang, masukkan **Email** Anda untuk admin dan sertifikat SSL:", parse_mode='Markdown')
+    return PTERO_GET_EMAIL
+
+async def ptero_get_email(update: Update, context: CallbackContext) -> int:
+    """Menyimpan email dan meminta username admin."""
+    context.user_data['ptero_email'] = update.message.text
+    await update.message.reply_text("Email berhasil disimpan. Masukkan **Username** untuk akun admin panel:", parse_mode='Markdown')
+    return PTERO_GET_ADMIN_USER
+
+async def ptero_get_admin_user(update: Update, context: CallbackContext) -> int:
+    """Menyimpan username admin dan meminta password admin."""
+    context.user_data['ptero_admin_user'] = update.message.text
+    await update.message.reply_text("Username admin berhasil disimpan. Masukkan **Password** untuk akun admin:", parse_mode='Markdown')
+    return PTERO_GET_ADMIN_PASS
+
+async def ptero_get_admin_pass(update: Update, context: CallbackContext) -> int:
+    """Menyimpan password admin, menghapus pesan, dan meminta nama depan."""
+    context.user_data['ptero_admin_pass'] = update.message.text
+
+    # Hapus pesan yang berisi password
+    await update.message.delete()
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Password admin berhasil disimpan dan pesan asli telah dihapus.\n\n"
+             "Masukkan **Nama Depan** (First Name) Anda:",
+        parse_mode='Markdown'
+    )
+    return PTERO_GET_ADMIN_FNAME
+
+async def ptero_get_admin_fname(update: Update, context: CallbackContext) -> int:
+    """Menyimpan nama depan dan meminta nama belakang."""
+    context.user_data['ptero_admin_fname'] = update.message.text
+    await update.message.reply_text("Nama depan berhasil disimpan. Masukkan **Nama Belakang** (Last Name) Anda:", parse_mode='Markdown')
+    return PTERO_GET_ADMIN_LNAME
+
+async def ptero_get_admin_lname(update: Update, context: CallbackContext) -> int:
+    """Menyimpan nama belakang dan meminta konfigurasi SSL."""
+    context.user_data['ptero_admin_lname'] = update.message.text
+
+    keyboard = [
+        [InlineKeyboardButton("Ya, gunakan Let's Encrypt (Disarankan)", callback_data='ptero_ssl_yes')],
+        [InlineKeyboardButton("Tidak, saya akan atur manual nanti", callback_data='ptero_ssl_no')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "Detail admin berhasil disimpan.\n\n"
+        "Apakah Anda ingin mencoba mengkonfigurasi **SSL (HTTPS) secara otomatis** menggunakan Let's Encrypt?",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+    return PTERO_GET_SSL
+
+async def ptero_get_ssl(update: Update, context: CallbackContext) -> int:
+    """Menyimpan pilihan SSL dan bertanya tentang instalasi Wings."""
+    query = update.callback_query
+    await query.answer()
+
+    context.user_data['ptero_ssl'] = True if query.data == 'ptero_ssl_yes' else False
+
+    keyboard = [
+        [InlineKeyboardButton("Ya, instal Wings di server ini", callback_data='ptero_wings_yes')],
+        [InlineKeyboardButton("Tidak, hanya instal Panel", callback_data='ptero_wings_no')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text(
+        text="Konfigurasi SSL disimpan.\n\n"
+             "Apakah Anda juga ingin menginstal **Wings** (daemon server game) di mesin yang sama? "
+             "Ini diperlukan untuk menjalankan server game di VPS ini.",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+    return PTERO_ASK_WINGS
+
+
+async def ptero_ask_wings(update: Update, context: CallbackContext) -> int:
+    """Menangani pilihan instalasi Wings. Jika ya, minta batas CPU."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'ptero_wings_yes':
+        context.user_data['install_wings'] = True
+        await query.edit_message_text(
+            text="Baik, kita akan instal Wings.\n\n"
+                 "Masukkan **batas CPU** untuk server game (dalam %, contoh: `200` untuk 2 core):",
+            parse_mode='Markdown'
+        )
+        return PTERO_GET_WINGS_CPU
+    else:
+        context.user_data['install_wings'] = False
+        # Jika tidak install wings, langsung ke ringkasan
+        return await ptero_show_summary_and_confirm(update, context, is_callback=True)
+
+async def ptero_get_wings_cpu(update: Update, context: CallbackContext) -> int:
+    """Menyimpan batas CPU dan meminta batas RAM."""
+    context.user_data['wings_cpu'] = update.message.text
+    await update.message.reply_text(
+        "Batas CPU disimpan.\n\n"
+        "Masukkan **batas RAM** untuk server game (dalam MB, contoh: `4096` untuk 4GB):",
+        parse_mode='Markdown'
+    )
+    return PTERO_GET_WINGS_RAM
+
+async def ptero_get_wings_ram(update: Update, context: CallbackContext) -> int:
+    """Menyimpan batas RAM dan menampilkan ringkasan."""
+    context.user_data['wings_ram'] = update.message.text
+    return await ptero_show_summary_and_confirm(update, context, is_callback=False)
+
+async def ptero_show_summary_and_confirm(update: Update, context: CallbackContext, is_callback: bool) -> int:
+    """Menampilkan ringkasan akhir dari semua data yang dikumpulkan dan meminta konfirmasi."""
+    details = {
+        "IP VPS": context.user_data.get('ptero_ip'),
+        "Username VPS": context.user_data.get('ptero_user'),
+        "Domain Panel": context.user_data.get('ptero_fqdn'),
+        "Email Admin": context.user_data.get('ptero_email'),
+        "Username Admin": context.user_data.get('ptero_admin_user'),
+        "SSL Otomatis": "Ya" if context.user_data.get('ptero_ssl') else "Tidak",
+        "Instal Wings": "Ya" if context.user_data.get('install_wings') else "Tidak",
+    }
+    if context.user_data.get('install_wings'):
+        details["Batas CPU Wings"] = f"{context.user_data.get('wings_cpu')}%"
+        details["Batas RAM Wings"] = f"{context.user_data.get('wings_ram')} MB"
+
+    summary_text = "**Harap Konfirmasi Detail Instalasi:**\n\n"
+    for key, value in details.items():
+        summary_text += f"**{key}:** `{value}`\n"
+    summary_text += "\nApakah Anda yakin ingin melanjutkan?"
+
+    keyboard = [
+        [InlineKeyboardButton("✅ Ya, Lanjutkan", callback_data='ptero_confirm_yes')],
+        [InlineKeyboardButton("❌ Tidak, Batalkan", callback_data='ptero_confirm_no')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Pesan diedit jika dari callback, atau dikirim baru jika dari pesan biasa
+    if is_callback:
+        query = update.callback_query
+        await query.edit_message_text(text=summary_text, reply_markup=reply_markup, parse_mode='Markdown')
+    else:
+        await update.message.reply_text(text=summary_text, reply_markup=reply_markup, parse_mode='Markdown')
+
+    return PTERO_CONFIRM
+
+async def ptero_confirm(update: Update, context: CallbackContext) -> int:
+    """Menangani konfirmasi akhir dari pengguna dan memulai instalasi."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'ptero_confirm_yes':
+        status_message = await query.edit_message_text(
+            "⏳ **Menginisialisasi...**\n"
+            "Mencoba terhubung ke VPS Anda. Mohon tunggu.",
+            parse_mode='Markdown'
+        )
+
+        ptero_user_data = context.user_data.copy()
+
+        asyncio.create_task(
+            install_pterodactyl(ptero_user_data, context.bot, update.effective_chat.id, status_message)
+        )
+
+        context.user_data.clear()
+        return ConversationHandler.END
+    else:
+        await query.edit_message_text("Instalasi dibatalkan.")
+        context.user_data.clear()
+        return ConversationHandler.END
+
+async def ptero_cancel(update: Update, context: CallbackContext) -> int:
+    """Membatalkan alur percakapan Pterodactyl."""
+    await update.message.reply_text('Instalasi Pterodactyl dibatalkan.')
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
 def main():
     # Membuat direktori unduhan jika belum ada
     os.makedirs("downloads", exist_ok=True)
@@ -696,6 +950,30 @@ def main():
     # Handler unduhan harus didaftarkan SEBELUM handler tombol umum
     application.add_handler(CallbackQueryHandler(unduh_video, pattern='^unduh_video\\|'))
     application.add_handler(CallbackQueryHandler(unduh_audio, pattern='^unduh_audio\\|'))
+
+    # Handler Pterodactyl
+    ptero_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_pterodactyl_install, pattern='^ptero_start_install$')],
+        states={
+            PTERO_GET_IP: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_ip)],
+            PTERO_GET_USER: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_user)],
+            PTERO_GET_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_pass)],
+            PTERO_GET_FQDN: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_fqdn)],
+            PTERO_GET_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_email)],
+            PTERO_GET_ADMIN_USER: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_admin_user)],
+            PTERO_GET_ADMIN_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_admin_pass)],
+            PTERO_GET_ADMIN_FNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_admin_fname)],
+            PTERO_GET_ADMIN_LNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_admin_lname)],
+            PTERO_GET_SSL: [CallbackQueryHandler(ptero_get_ssl, pattern='^ptero_ssl_')],
+            PTERO_ASK_WINGS: [CallbackQueryHandler(ptero_ask_wings, pattern='^ptero_wings_')],
+            PTERO_GET_WINGS_CPU: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_wings_cpu)],
+            PTERO_GET_WINGS_RAM: [MessageHandler(filters.TEXT & ~filters.COMMAND, ptero_get_wings_ram)],
+            PTERO_CONFIRM: [CallbackQueryHandler(ptero_confirm, pattern='^ptero_confirm_')],
+        },
+        fallbacks=[CommandHandler("batal", ptero_cancel)],
+    )
+    application.add_handler(ptero_conv)
+
     application.add_handler(CallbackQueryHandler(button_callback_handler))
 
     # Jalankan bot
