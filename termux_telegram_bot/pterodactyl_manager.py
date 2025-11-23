@@ -42,9 +42,12 @@ async def install_pterodactyl(user_data, bot, chat_id, status_message):
             bot, chat_id, status_message, "✅ Terhubung ke VPS. Membuat direktori remote..."
         )
 
-        sftp_batch_file = f'put -r {local_scripts_dir}/* {remote_base_dir}/'
+        # Perbaikan: Menggunakan 'echo' dan 'pipe' untuk kompatibilitas shell yang lebih baik
+        sftp_batch_commands = f"put -r {local_scripts_dir}/* {remote_base_dir}/"
+        sftp_command = f"echo '{sftp_batch_commands}' | {sshpass_prefix} sftp -b - {ssh_opts} {user}@{ip}"
+
         await run_subprocess(
-            f"{sshpass_prefix} sftp {ssh_opts} {user}@{ip} -b <(echo \"{sftp_batch_file}\")",
+            sftp_command,
             bot, chat_id, status_message, "✅ Direktori dibuat. Mengunggah skrip instalasi..."
         )
 
