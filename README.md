@@ -31,19 +31,13 @@ Pastikan semua paket di Termux adalah versi terbaru.
 pkg update && pkg upgrade -y
 ```
 
-**Langkah 2: Instal Dependensi Inti**
-Bot ini memerlukan `python`, `git` untuk mengunduh kode, dan `ffmpeg` untuk memproses audio/video.
+**Langkah 2: Instal Dependensi Sistem**
+Perintah ini menginstal semua paket dasar yang dibutuhkan bot untuk berfungsi.
 ```bash
-pkg install python git ffmpeg -y
+pkg install python git ffmpeg openssh sshpass -y
 ```
 
-**Langkah 3: Instal Dependensi Build (PENTING!)**
-Beberapa pustaka Python perlu dikompilasi saat instalasi. Perintah ini akan mencegah banyak error saat `pip install`.
-```bash
-pkg install clang rust -y
-```
-
-**Langkah 4: Unduh Kode Bot & Masuk ke Direktori**
+**Langkah 3: Unduh Kode Bot & Masuk ke Direktori**
 
 1.  **Unduh Kode (Clone)**
     Perintah ini akan mengunduh kode bot ke dalam sebuah folder baru bernama `termux_telegram_bot`. Ganti `<URL_REPOSITORY_ANDA>` dengan URL Git proyek ini.
@@ -59,13 +53,13 @@ pkg install clang rust -y
     > **PEMBERITAHUAN PENTING:**
     > Semua perintah selanjutnya (`pip install`, `cp .env.example`, `./run.sh`, dll.) **harus** dijalankan dari dalam folder `termux_telegram_bot`. Jika tidak, Anda akan mendapatkan error `No such file or directory`.
 
-**Langkah 5: Instal Pustaka Python**
+**Langkah 4: Instal Pustaka Python**
 Perintah ini akan menginstal semua pustaka Python yang dibutuhkan oleh bot.
 ```bash
 pip install -r requirements.txt
 ```
 
-**Langkah 6: Atur Kunci API Anda**
+**Langkah 5: Atur Kunci API Anda**
 
 1.  **Salin File Konfigurasi**
     Perintah ini akan membuat file `.env` dari contoh yang ada. File ini bersifat rahasia dan tidak boleh dibagikan.
