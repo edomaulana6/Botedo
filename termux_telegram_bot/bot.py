@@ -103,13 +103,48 @@ async def start_unduh_from_menu(update: Update, context: CallbackContext):
 
 # ... (kode pencarian video di atasnya) ...
 
-async def handle_downloads(update: Update, context: CallbackContext):
-    # --- SEMUA ISI FUNGSI INI DIGANTI ---
-    # Mulai dari sini sampai...
-    # ... proses download & progress bar ...
-    # ... sampai os.remove(path) ...
-
 # --- DI SINI ADALAH BATASNYA ---
+    async def handle_downloads(update: Update, context: CallbackContext):
+    query = update.callback_query
+    type_dl, v_url = query.data.split('|')
+    await query.answer()
+    
+    status_msg = await query.message.reply_text("⏳ Menyiapkan...")
+    loop = asyncio.get_running_loop()
+    last_upd = 0
+
+    def progress_hook(d):
+        nonlocal last_upd
+        if d['status'] == 'downloading':
+            now = loop.time()
+            if now - last_upd > 2:
+                p, s = d.get('_percent_str', '0%'), d.get('_speed_str', '0B/s')
+                asyncio.run_coroutine_threadsafe(
+                    status_msg.edit_text(f"📥 **Unduh**\nProg: `{p}`\nSpeed: `{s}`", parse_mode='Markdown'), 
+                    loop
+                )
+                last_upd = now
+
+    ydl_opts = {'outtmpl': 'downloads/%(title)s.%(ext)s', 'progress_hooks': [progress_hook]}
+    if type_dl == "dl_a":
+        ydl_opts.update({'format': 'bestaudio', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3'}]})
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = await asyncio.to_thread(ydl.extract_info, v_url, download=True)
+            path = ydl.prepare_filename(info)
+            if type_dl == "dl_a": path = os.path.splitext(path)[0] + ".mp3"
+            
+            await status_msg.edit_text("📤 Mengirim...")
+            with open(path, 'rb') as f:
+                if type_dl == "dl_v": await context.bot.send_video(query.message.chat_id, video=f)
+                else: await context.bot.send_audio(query.message.chat_id, audio=f)
+            
+            if os.path.exists(path): os.remove(path)
+            await status_msg.delete()
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Gagal: {e}")
+        
 # --- FUNGSI PEMBANTU LAINNYA (ISLAMI & MENU) ---
 
 async def islamic_menu(update: Update, context: CallbackContext):
