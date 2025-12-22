@@ -101,81 +101,19 @@ async def start_unduh_from_menu(update: Update, context: CallbackContext):
     await query.edit_message_text("📥 Kirimkan URL atau Judul Video untuk dicari:")
     return GET_UNDUH_QUERY
 
-async def process_download_request(update: Update, context: CallbackContext):
-    query = update.message.text
-    status_msg = await update.message.reply_text(f"🔎 Memproses `{query}`...", parse_mode='Markdown')
-    
-    try:
-        is_url = query.strip().startswith('http')
-        search_query = query if is_url else f"ytsearch1:{query}"
-
-        ydl_opts = {'format': 'best', 'noplaylist': True, 'quiet': True}
-        info = await asyncio.to_thread(YoutubeDL(ydl_opts).extract_info, search_query, download=False)
-        
-        video = info['entries'][0] if 'entries' in info else info
-        title = video.get('title', 'N/A')
-        v_url = video.get('webpage_url')
-        thumb = video.get('thumbnail')
-
-        keyboard = [[
-            InlineKeyboardButton("📹 Video", callback_data=f"dl_v|{v_url}"),
-            InlineKeyboardButton("🎧 Audio", callback_data=f"dl_a|{v_url}")
-        ]]
-        
-        await status_msg.delete()
-        caption = f"✅ **Ditemukan:**\n{title}"
-        if thumb:
-            await update.message.reply_photo(thumb, caption=caption, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        else:
-            await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-            
-    except Exception as e:
-        await status_msg.edit_text(f"❌ Error: {e}")
-    return ConversationHandler.END
+# ... (kode pencarian video di atasnya) ...
 
 async def handle_downloads(update: Update, context: CallbackContext):
-    query = update.callback_query
-    type_dl, v_url = query.data.split('|')
-    await query.answer()
-    
-    status_msg = await query.message.reply_text("📥 Memulai unduhan...")
-    last_update = 0
+    # --- SEMUA ISI FUNGSI INI DIGANTI ---
+    # Mulai dari sini sampai...
+    # ... proses download & progress bar ...
+    # ... sampai os.remove(path) ...
 
-    def progress_hook(d):
-        nonlocal last_update
-        if d['status'] == 'downloading':
-            now = asyncio.get_event_loop().time()
-            if now - last_update > 2: # Update setiap 2 detik
-                p = d.get('_percent_str', '0%')
-                s = d.get('_speed_str', '0B/s')
-                loop = asyncio.get_event_loop()
-                loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(status_msg.edit_text(f"📥 **Downloading**\nProgress: `{p}`\nSpeed: `{s}`", parse_mode='Markdown'))
-                )
-                last_update = now
+# --- DI SINI ADALAH BATASNYA ---
+# --- FUNGSI PEMBANTU LAINNYA (ISLAMI & MENU) ---
 
-    ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'progress_hooks': [progress_hook],
-    }
-    if type_dl == "dl_a":
-        ydl_opts.update({'format': 'bestaudio', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3'}]})
-
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info = await asyncio.to_thread(ydl.extract_info, v_url, download=True)
-            path = ydl.prepare_filename(info)
-            if type_dl == "dl_a": path = os.path.splitext(path)[0] + ".mp3"
-            
-            await status_msg.edit_text("📤 Mengirim ke Telegram...")
-            with open(path, 'rb') as f:
-                if type_dl == "dl_v": await context.bot.send_video(query.message.chat_id, video=f)
-                else: await context.bot.send_audio(query.message.chat_id, audio=f)
-            
-            os.remove(path)
-            await status_msg.delete()
-    except Exception as e:
-        await status_msg.edit_text(f"❌ Gagal: {e}")
+async def islamic_menu(update: Update, context: CallbackContext):
+    # ... (dan seterusnya) ...
 
 # --- FUNGSI PEMBANTU LAINNYA (ISLAMI & MENU) ---
 
@@ -237,8 +175,60 @@ def main():
     app.add_handler(CallbackQueryHandler(islamic_menu, pattern='^menu_islamic$'))
     app.add_handler(CallbackQueryHandler(main_menu, pattern='^main_menu_back$'))
 
-    print("🚀 Bot is running...")
+def main():
+    if not os.path.exists("downloads"): os.makedirs("downloads")
+    app = Application.builder().token(TOKEN).build()
+
+    # --- REGISTRASI COMMAND HANDLERS ---
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", main_menu))
+    
+    # Menambahkan shortcut agar perintah langsung bisa jalan
+    
+    # app.add_handler(CommandHandler("ai", start_ai_chat)) # Aktifkan jika fungsi AI sudah siap
+
+    # --- REGISTRASI CONVERSATION HANDLERS ---
+    # Downloader
+    app.add_handler(ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(start_unduh_from_menu, pattern='^menu_downloader$'),
+            CommandHandler("unduh", start_unduh_from_menu) # Shortcut command
+        ],
+        states={GET_UNDUH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_download_request)]},
+        fallbacks=[],
+        per_message=True
+    ))
+
+    # Image Search
+    app.add_handler(ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(start_image_search_from_menu, pattern='^start_gambar$'),
+            CommandHandler("gambar", start_image_search_from_menu) # Shortcut command
+        ],
+        states={GET_GAMBAR_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, perform_gambar_search)]},
+        fallbacks=[],
+        per_message=True
+    ))
+
+    # Islamic Search
+    app.add_handler(ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(start_azan_search, pattern='^start_azan$'),
+            CommandHandler("azan", start_azan_search) # Shortcut command
+        ],
+        states={GET_AZAN_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_azan)]},
+        fallbacks=[],
+        per_message=True
+    ))
+
+    # Callback untuk tombol umum
+    app.add_handler(CallbackQueryHandler(handle_downloads, pattern='^dl_'))
+    app.add_handler(CallbackQueryHandler(islamic_menu, pattern='^menu_islamic$'))
+    app.add_handler(CallbackQueryHandler(main_menu, pattern='^main_menu_back$'))
+
+    print("🚀 Bot is running with Shortcut Commands...")
     app.run_polling()
 
 if __name__ == '__main__':
     main()
+    
